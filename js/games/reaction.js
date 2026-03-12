@@ -2,18 +2,18 @@
    reaction.js — Reaction Time game
    ============================================ */
 const ReactionGame = (() => {
-    let state, timeout, startTime, times;
+  let state, timeout, startTime, times;
 
-    function init(container) {
-        state = 'idle';
-        times = [];
-        render(container);
-    }
+  function init(container) {
+    state = 'idle';
+    times = [];
+    render(container);
+  }
 
-    function render(container) {
-        const avg = times.length > 0 ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : '—';
-        const best = times.length > 0 ? Math.min(...times) : '—';
-        container.innerHTML = `
+  function render(container) {
+    const avg = times.length > 0 ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : '—';
+    const best = times.length > 0 ? Math.min(...times) : '—';
+    container.innerHTML = `
       <div style="margin-bottom:20px;color:var(--text-secondary);">
         Average: <span style="color:var(--neon-cyan);font-weight:700;">${avg}${typeof avg === 'number' ? 'ms' : ''}</span>
         &nbsp;&nbsp;|&nbsp;&nbsp;
@@ -23,60 +23,60 @@ const ReactionGame = (() => {
       </div>
       <div class="reaction-box ${state}" id="reaction-box">
         ${state === 'idle' ? 'Click to Start' :
-                state === 'waiting' ? 'Wait for green...' :
-                    state === 'ready' ? 'CLICK NOW!' :
-                        state === 'early' ? 'Too early! Click to retry' : 'Click to Start'}
+        state === 'waiting' ? 'Wait for green...' :
+          state === 'ready' ? 'CLICK NOW!' :
+            state === 'early' ? 'Too early! Click to retry' : 'Click to Start'}
       </div>
       <div class="reaction-times" id="reaction-times">
         ${times.map((t, i) => `<span class="reaction-time-badge">#${i + 1}: ${t}ms</span>`).join('')}
       </div>
     `;
-        document.getElementById('reaction-box').addEventListener('click', handleClick.bind(null, container));
+    document.getElementById('reaction-box').addEventListener('click', handleClick.bind(null, container));
+  }
+
+  function handleClick(container) {
+    if (state === 'idle' || state === 'early') {
+      state = 'waiting';
+      render(container);
+      const delay = 1000 + Math.random() * 4000;
+      timeout = setTimeout(() => {
+        state = 'ready';
+        startTime = Date.now();
+        render(container);
+      }, delay);
+    } else if (state === 'waiting') {
+      clearTimeout(timeout);
+      state = 'early';
+      render(container);
+    } else if (state === 'ready') {
+      const reaction = Date.now() - startTime;
+      times.push(reaction);
+      state = 'idle';
+
+      if (times.length >= 5) {
+        finishGame(container);
+      } else {
+        render(container);
+      }
     }
+  }
 
-    function handleClick(container) {
-        if (state === 'idle' || state === 'early') {
-            state = 'waiting';
-            render(container);
-            const delay = 1000 + Math.random() * 4000;
-            timeout = setTimeout(() => {
-                state = 'ready';
-                startTime = Date.now();
-                render(container);
-            }, delay);
-        } else if (state === 'waiting') {
-            clearTimeout(timeout);
-            state = 'early';
-            render(container);
-        } else if (state === 'ready') {
-            const reaction = Date.now() - startTime;
-            times.push(reaction);
-            state = 'idle';
-
-            if (times.length >= 5) {
-                finishGame(container);
-            } else {
-                render(container);
-            }
-        }
+  function finishGame(container) {
+    const avg = Math.round(times.reduce((a, b) => a + b, 0) / times.length);
+    const best = Math.min(...times);
+    const score = Math.max(500 - avg, 10);
+    const won = avg < 400;
+    Auth.recordGame('reaction', score, won);
+    const p = Auth.getPlayer();
+    if (p && best < (p.reactionBest || 9999)) {
+      p.reactionBest = best;
+      Auth.savePlayer(p);
     }
+    const daily = DailyChallenge.getToday();
+    if (daily.id === 'reaction' && !DailyChallenge.hasCompletedToday()) DailyChallenge.markCompleted();
+    if (won) GameUtils.confetti();
 
-    function finishGame(container) {
-        const avg = Math.round(times.reduce((a, b) => a + b, 0) / times.length);
-        const best = Math.min(...times);
-        const score = Math.max(500 - avg, 10);
-        const won = avg < 400;
-        Auth.recordGame('reaction', score, won);
-        const p = Auth.getPlayer();
-        if (p && best < (p.reactionBest || 9999)) {
-            p.reactionBest = best;
-            Auth.savePlayer(p);
-        }
-        const daily = DailyChallenge.getToday();
-        if (daily.id === 'reaction' && !DailyChallenge.hasCompletedToday()) DailyChallenge.markCompleted();
-        if (won) GameUtils.confetti();
-
-        container.innerHTML = `
+    container.innerHTML = `
       <div class="game-over-overlay" style="position:relative;">
         <h3>${won ? '⚡ Lightning Fast!' : '⚡ Results'}</h3>
         <div class="final-score">Average: ${avg}ms • Best: ${best}ms</div>
@@ -89,7 +89,7 @@ const ReactionGame = (() => {
         </div>
       </div>
     `;
-    }
+  }
 
-    return { init };
+  return { init, cleanup: () => { clearTimeout(timeout); } };
 })();

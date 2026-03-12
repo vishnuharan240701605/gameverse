@@ -155,5 +155,5 @@ const SnakeGame = (() => {
         if (area) { area.style.position = 'relative'; area.appendChild(overlay); }
     }
 
-    return { init, setDir };
+    return { init, setDir, cleanup: () => { clearInterval(interval); document.onkeydown = null; gameOver = true; } };
 })();

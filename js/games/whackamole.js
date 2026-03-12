@@ -92,5 +92,5 @@ const WhackAMoleGame = (() => {
         if (area) { area.style.position = 'relative'; area.appendChild(overlay); }
     }
 
-    return { init };
+    return { init, cleanup: () => { clearInterval(timer); clearTimeout(moleTimer); } };
 })();

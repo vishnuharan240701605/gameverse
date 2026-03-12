@@ -68,7 +68,15 @@ function runLoader(cb) {
 /* --- Router --- */
 function getRoute() { return (location.hash.slice(1) || 'home'); }
 
+/* --- Cleanup all running game timers --- */
+function cleanupGames() {
+  if (typeof SnakeGame !== 'undefined' && SnakeGame.cleanup) SnakeGame.cleanup();
+  if (typeof WhackAMoleGame !== 'undefined' && WhackAMoleGame.cleanup) WhackAMoleGame.cleanup();
+  if (typeof ReactionGame !== 'undefined' && ReactionGame.cleanup) ReactionGame.cleanup();
+}
+
 function navigate() {
+  cleanupGames();
   const route = getRoute(), main = document.getElementById('main-content');
   document.querySelectorAll('.nav-links a').forEach(a => a.classList.toggle('active', a.dataset.nav === route.split('/')[0]));
   document.getElementById('nav-links').classList.remove('open');
