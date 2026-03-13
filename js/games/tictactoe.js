@@ -9,6 +9,7 @@ const TicTacToeGame = (() => {
         playerTurn = true;
         gameActive = true;
         scores = scores || { player: 0, computer: 0, draws: 0 };
+        SoundFX.play('gameStart');
         render(container);
     }
 
@@ -36,13 +37,13 @@ const TicTacToeGame = (() => {
 
         board[idx] = 'X';
         playerTurn = false;
+        SoundFX.play('click');
         render(container);
 
         const winner = checkWinner();
         if (winner) return endRound(container, winner);
         if (board.every(c => c)) return endRound(container, 'draw');
 
-        // CPU turn
         setTimeout(() => {
             cpuMove();
             render(container);
@@ -55,15 +56,11 @@ const TicTacToeGame = (() => {
     }
 
     function cpuMove() {
-        // Try to win
         const winMove = findBestMove('O');
         if (winMove !== -1) { board[winMove] = 'O'; return; }
-        // Block player
         const blockMove = findBestMove('X');
         if (blockMove !== -1) { board[blockMove] = 'O'; return; }
-        // Center
         if (!board[4]) { board[4] = 'O'; return; }
-        // Random
         const empty = board.map((c, i) => c === '' ? i : -1).filter(i => i >= 0);
         if (empty.length > 0) {
             board[empty[Math.floor(Math.random() * empty.length)]] = 'O';
@@ -103,6 +100,7 @@ const TicTacToeGame = (() => {
             const p = Auth.getPlayer();
             if (p) { p.tttWins = (p.tttWins || 0) + 1; Auth.savePlayer(p); }
             GameUtils.confetti();
+            SoundFX.play('win');
         }
         const daily = DailyChallenge.getToday();
         if (daily.id === 'tictactoe' && !DailyChallenge.hasCompletedToday()) DailyChallenge.markCompleted();

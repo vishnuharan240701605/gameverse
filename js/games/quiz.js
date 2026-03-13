@@ -15,10 +15,11 @@ const QuizGame = (() => {
         { q: 'What is the boiling point of water?', options: ['90°C', '95°C', '100°C', '110°C'], answer: 2 },
     ];
 
-    let current = 0, score = 0, answered = false;
+    let current = 0, score = 0, answered = false, _ended = false;
 
     function init(container) {
-        current = 0; score = 0;
+        current = 0; score = 0; _ended = false;
+        SoundFX.play('gameStart');
         render(container);
     }
 
@@ -60,11 +61,14 @@ const QuizGame = (() => {
             if (bidx === idx && idx !== q.answer) b.classList.add('wrong');
             b.style.pointerEvents = 'none';
         });
-        if (idx === q.answer) score += 10;
+        if (idx === q.answer) { score += 10; SoundFX.play('correct'); }
+        else SoundFX.play('wrong');
         setTimeout(() => { current++; render(container); }, 1200);
     }
 
     function showResult(container) {
+        if (_ended) return;
+        _ended = true;
         const won = score >= 50;
         Auth.recordGame('quiz', score, won);
         const p = Auth.getPlayer();
@@ -72,12 +76,11 @@ const QuizGame = (() => {
             p.quizBest = score;
             Auth.savePlayer(p);
         }
-        // Daily challenge
         const daily = DailyChallenge.getToday();
         if (daily.id === 'quiz' && !DailyChallenge.hasCompletedToday()) {
             DailyChallenge.markCompleted();
         }
-        if (won) GameUtils.confetti();
+        if (won) { GameUtils.confetti(); SoundFX.play('win'); }
         container.innerHTML = `
       <div class="game-over-overlay" style="position:relative;">
         <h3>${won ? '🎉 Excellent!' : '📝 Quiz Complete'}</h3>

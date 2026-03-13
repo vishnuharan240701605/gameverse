@@ -35,7 +35,7 @@ const RPSGame = (() => {
         const cpuIdx = Math.floor(Math.random() * 3);
         const playerPick = CHOICES[playerIdx];
         const cpuPick = CHOICES[cpuIdx];
-        let result;
+        let result, won = false;
         if (playerIdx === cpuIdx) {
             result = "🤝 It's a Tie!";
         } else if ((playerIdx + 1) % 3 === cpuIdx) {
@@ -44,16 +44,16 @@ const RPSGame = (() => {
         } else {
             result = '🎉 You Win!';
             scores.player++;
-            Auth.recordGame('rps', 15, true);
+            won = true;
             const p = Auth.getPlayer();
             if (p && scores.player > (p.rpsBest || 0)) { p.rpsBest = scores.player; Auth.savePlayer(p); }
             GameUtils.confetti();
         }
-        if (result.includes('Lose')) {
-            Auth.recordGame('rps', 0, false);
-        }
+        // Record game once per round (not separately for win/lose)
+        Auth.recordGame('rps', won ? 15 : 0, won);
+        SoundFX.play(won ? 'win' : 'click');
         const daily = DailyChallenge.getToday();
-        if (daily.id === 'rps' && !DailyChallenge.hasCompletedToday() && result.includes('Win')) DailyChallenge.markCompleted();
+        if (daily.id === 'rps' && !DailyChallenge.hasCompletedToday() && won) DailyChallenge.markCompleted();
         render(container, result, playerPick, cpuPick);
     }
 

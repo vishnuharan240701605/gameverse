@@ -3,7 +3,7 @@
    ============================================ */
 const MemoryGame = (() => {
     const EMOJIS = ['🎮', '🎲', '🎯', '🏆', '⚡', '🔥', '💎', '🚀'];
-    let cards, flipped, matched, moves, lockBoard;
+    let cards, flipped, matched, moves, lockBoard, _ended;
 
     function init(container) {
         const pairs = [...EMOJIS, ...EMOJIS];
@@ -12,6 +12,8 @@ const MemoryGame = (() => {
         matched = 0;
         moves = 0;
         lockBoard = false;
+        _ended = false;
+        SoundFX.play('gameStart');
         render(container);
     }
 
@@ -42,12 +44,12 @@ const MemoryGame = (() => {
 
     function flipCard(card, container) {
         if (lockBoard) return;
-        const idx = parseInt(card.dataset.idx);
         if (card.classList.contains('flipped') || card.classList.contains('matched')) return;
 
         card.classList.add('flipped');
         card.textContent = card.dataset.emoji;
         flipped.push(card);
+        SoundFX.play('click');
 
         if (flipped.length === 2) {
             moves++;
@@ -62,11 +64,13 @@ const MemoryGame = (() => {
                 document.getElementById('memory-matched').textContent = `${matched}/${EMOJIS.length}`;
                 flipped = [];
                 lockBoard = false;
+                SoundFX.play('correct');
 
                 if (matched === EMOJIS.length) {
                     setTimeout(() => gameOver(container), 600);
                 }
             } else {
+                SoundFX.play('wrong');
                 setTimeout(() => {
                     a.classList.remove('flipped');
                     b.classList.remove('flipped');
@@ -80,6 +84,8 @@ const MemoryGame = (() => {
     }
 
     function gameOver(container) {
+        if (_ended) return;
+        _ended = true;
         const score = Math.max(100 - moves * 2, 10);
         Auth.recordGame('memory', score, true);
         const p = Auth.getPlayer();
@@ -91,6 +97,7 @@ const MemoryGame = (() => {
         const daily = DailyChallenge.getToday();
         if (daily.id === 'memory' && !DailyChallenge.hasCompletedToday()) DailyChallenge.markCompleted();
         GameUtils.confetti();
+        SoundFX.play('win');
         container.innerHTML = `
       <div class="game-over-overlay" style="position:relative;">
         <h3>🎉 All Matched!</h3>

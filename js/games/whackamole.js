@@ -2,10 +2,11 @@
    whackamole.js — Click targets as they appear
    ============================================ */
 const WhackAMoleGame = (() => {
-    let score, timeLeft, timer, moleTimer, active;
+    let score, timeLeft, timer, moleTimer, active, _ended;
 
     function init(container) {
-        score = 0; timeLeft = 30; active = -1;
+        score = 0; timeLeft = 30; active = -1; _ended = false;
+        SoundFX.play('gameStart');
         render(container);
         startGame(container);
     }
@@ -39,9 +40,7 @@ const WhackAMoleGame = (() => {
     function showMole(container) {
         const holes = container.querySelectorAll('.wam-hole');
         if (!holes.length) return;
-        // Clear previous
         holes.forEach(h => { h.textContent = ''; h.style.background = 'var(--bg-glass)'; h.style.borderColor = 'var(--border-glass)'; });
-        // Random hole
         active = Math.floor(Math.random() * 9);
         const hole = holes[active];
         if (hole) {
@@ -65,17 +64,25 @@ const WhackAMoleGame = (() => {
             hole.style.background = 'rgba(0,255,136,.1)';
             hole.style.borderColor = 'var(--neon-green)';
             active = -1;
+            SoundFX.play('correct');
             clearTimeout(moleTimer);
             setTimeout(() => showMole(container), 300);
         }
     }
 
     function endGame(container) {
+        if (_ended) return;
+        _ended = true;
         clearInterval(timer);
         clearTimeout(moleTimer);
         const won = score >= 15;
         Auth.recordGame('whackamole', score * 5, won);
-        if (won) GameUtils.confetti();
+        const p = Auth.getPlayer();
+        if (p && (score * 5) > (p.whackamoleBest || 0)) {
+            p.whackamoleBest = score * 5;
+            Auth.savePlayer(p);
+        }
+        if (won) { GameUtils.confetti(); SoundFX.play('win'); }
         const daily = DailyChallenge.getToday();
         if (daily.id === 'whackamole' && !DailyChallenge.hasCompletedToday()) DailyChallenge.markCompleted();
 
@@ -92,5 +99,11 @@ const WhackAMoleGame = (() => {
         if (area) { area.style.position = 'relative'; area.appendChild(overlay); }
     }
 
-    return { init, cleanup: () => { clearInterval(timer); clearTimeout(moleTimer); } };
+    function cleanup() {
+        clearInterval(timer);
+        clearTimeout(moleTimer);
+        _ended = true;
+    }
+
+    return { init, cleanup };
 })();

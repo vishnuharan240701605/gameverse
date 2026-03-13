@@ -9,7 +9,7 @@
   <title>GameVerse — Play. Compete. Conquer.</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap"
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -36,12 +36,17 @@
       <a href="#home" data-nav="home"><span class="nav-icon">🏠</span> Home</a>
       <a href="#games" data-nav="games"><span class="nav-icon">🎮</span> Games</a>
       <a href="#leaderboard" data-nav="leaderboard"><span class="nav-icon">🏆</span> Leaderboard</a>
+      <a href="#achievements" data-nav="achievements"><span class="nav-icon">🏅</span> Achievements</a>
       <a href="#profile" data-nav="profile"><span class="nav-icon">👤</span> Profile</a>
       <a href="#login" data-nav="login" id="nav-login-link"><span class="nav-icon">🔑</span> Login</a>
     </div>
-    <div id="nav-user-display" class="nav-user" style="display:none;">
-      <span id="nav-username"></span>
-      <span class="level-badge" id="nav-level-badge">Lv 1</span>
+    <div class="nav-right">
+      <button class="sound-toggle" id="sound-toggle" onclick="SoundFX.toggle()" title="Toggle Sound">🔊</button>
+      <div id="nav-user-display" class="nav-user" style="display:none;">
+        <span id="nav-coins" class="coin-badge">🪙 0</span>
+        <span id="nav-username"></span>
+        <span class="level-badge" id="nav-level-badge">Lv 1</span>
+      </div>
     </div>
     <div class="nav-hamburger" id="nav-hamburger">
       <span></span><span></span><span></span>
@@ -53,11 +58,41 @@
 
   <!-- Footer -->
   <footer class="site-footer">
-    <p>© 2026 GameVerse. Play. Compete. Conquer.</p>
+    <div class="footer-grid">
+      <div class="footer-col">
+        <div class="footer-brand">GAMEVERSE</div>
+        <p class="footer-desc">The ultimate gaming playground. Play mini-games, compete on leaderboards, and unlock achievements.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Quick Links</h4>
+        <a href="#home">Home</a>
+        <a href="#games">Games</a>
+        <a href="#leaderboard">Leaderboard</a>
+        <a href="#achievements">Achievements</a>
+      </div>
+      <div class="footer-col">
+        <h4>Connect</h4>
+        <a href="#profile">Profile</a>
+        <a href="https://github.com" target="_blank" rel="noopener">GitHub</a>
+        <a href="mailto:contact@gameverse.com">Contact</a>
+      </div>
+      <div class="footer-col">
+        <h4>Follow Us</h4>
+        <div class="footer-social">
+          <a href="#" title="Twitter" class="social-link">𝕏</a>
+          <a href="#" title="Discord" class="social-link">💬</a>
+          <a href="#" title="YouTube" class="social-link">▶</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2026 GameVerse. Play. Compete. Conquer. Built with ❤️ and JavaScript.</p>
+    </div>
   </footer>
 
   <!-- Scripts -->
   <script src="js/particles.js"></script>
+  <script src="js/sound.js"></script>
   <script src="js/achievements.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/leaderboard.js"></script>

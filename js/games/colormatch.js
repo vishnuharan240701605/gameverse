@@ -12,10 +12,11 @@ const ColorMatchGame = (() => {
         { name: 'Pink', hex: '#ff66aa' },
         { name: 'Cyan', hex: '#44ddff' },
     ];
-    let score, round, maxRounds, timeLeft, timer;
+    let score, round, maxRounds, _ended;
 
     function init(container) {
-        score = 0; round = 0; maxRounds = 15; timeLeft = 20;
+        score = 0; round = 0; maxRounds = 15; _ended = false;
+        SoundFX.play('gameStart');
         startRound(container);
     }
 
@@ -37,8 +38,6 @@ const ColorMatchGame = (() => {
       </div>
       <div style="margin-top:20px;color:var(--neon-cyan);font-weight:700;font-family:var(--font-display)">Score: ${score}</div>
     `;
-        const correct = (isMatch && word.name === word.name && shownColor === word.hex) ||
-            (!isMatch && shownColor !== word.hex) ? 'yes' : 'no';
         const actualMatch = shownColor === word.hex ? 'yes' : 'no';
 
         container.querySelectorAll('.quiz-option').forEach(btn => {
@@ -46,8 +45,10 @@ const ColorMatchGame = (() => {
                 if (btn.dataset.ans === actualMatch) {
                     score += 10;
                     btn.classList.add('correct');
+                    SoundFX.play('correct');
                 } else {
                     btn.classList.add('wrong');
+                    SoundFX.play('wrong');
                 }
                 container.querySelectorAll('.quiz-option').forEach(b => b.style.pointerEvents = 'none');
                 setTimeout(() => startRound(container), 700);
@@ -56,9 +57,16 @@ const ColorMatchGame = (() => {
     }
 
     function endGame(container) {
+        if (_ended) return;
+        _ended = true;
         const won = score >= 80;
         Auth.recordGame('colormatch', score, won);
-        if (won) GameUtils.confetti();
+        const p = Auth.getPlayer();
+        if (p && score > (p.colormatchBest || 0)) {
+            p.colormatchBest = score;
+            Auth.savePlayer(p);
+        }
+        if (won) { GameUtils.confetti(); SoundFX.play('win'); }
         const daily = DailyChallenge.getToday();
         if (daily.id === 'colormatch' && !DailyChallenge.hasCompletedToday()) DailyChallenge.markCompleted();
         container.innerHTML = `

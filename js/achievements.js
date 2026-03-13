@@ -6,9 +6,19 @@ const Achievements = (() => {
         { id: 'first_game', name: 'First Game Played', desc: 'Play your first game', icon: '🎮', condition: d => d.gamesPlayed >= 1 },
         { id: 'first_win', name: 'First Victory', desc: 'Win a game for the first time', icon: '🏆', condition: d => d.wins >= 1 },
         { id: 'score_100', name: 'Century Club', desc: 'Score 100 total points', icon: '💯', condition: d => d.totalScore >= 100 },
+        { id: 'score_500', name: 'Score Legend', desc: 'Score 500 total points', icon: '⭐', condition: d => d.totalScore >= 500 },
+        { id: 'score_1000', name: 'Point Master', desc: 'Score 1000 total points', icon: '🌟', condition: d => d.totalScore >= 1000 },
         { id: 'play_10', name: 'Dedicated Gamer', desc: 'Play 10 games', icon: '🔥', condition: d => d.gamesPlayed >= 10 },
+        { id: 'play_25', name: 'Game Addict', desc: 'Play 25 games', icon: '💥', condition: d => d.gamesPlayed >= 25 },
+        { id: 'play_50', name: 'Unstoppable', desc: 'Play 50 games', icon: '🚀', condition: d => d.gamesPlayed >= 50 },
+        { id: 'win_10', name: 'Champion', desc: 'Win 10 games', icon: '👑', condition: d => d.wins >= 10 },
+        { id: 'win_25', name: 'Grandmaster', desc: 'Win 25 games', icon: '🎖️', condition: d => d.wins >= 25 },
+        { id: 'coins_100', name: 'Coin Collector', desc: 'Earn 100 coins', icon: '🪙', condition: d => (d.coins || 0) >= 100 },
+        { id: 'coins_500', name: 'Treasure Hunter', desc: 'Earn 500 coins', icon: '💰', condition: d => (d.coins || 0) >= 500 },
         { id: 'memory_master', name: 'Memory Master', desc: 'Complete Memory Match', icon: '🧠', condition: d => d.memoryWins >= 1 },
         { id: 'snake_survivor', name: 'Snake Survivor', desc: 'Score 50+ in Snake', icon: '🐍', condition: d => d.snakeBest >= 50 },
+        { id: 'quiz_ace', name: 'Quiz Ace', desc: 'Score 80+ in Quiz', icon: '📚', condition: d => (d.quizBest || 0) >= 80 },
+        { id: 'speed_demon', name: 'Speed Demon', desc: 'Reaction time under 250ms', icon: '⚡', condition: d => d.reactionBest > 0 && d.reactionBest < 250 },
     ];
 
     function getPlayerData() {
@@ -23,7 +33,6 @@ const Achievements = (() => {
         localStorage.setItem('gv_achievements', JSON.stringify(list));
     }
 
-    /* Check all achievements and return newly unlocked ones */
     function check() {
         const data = getPlayerData();
         const unlocked = getUnlocked();
@@ -38,7 +47,6 @@ const Achievements = (() => {
         return newlyUnlocked;
     }
 
-    /* Show animated popup for each new achievement */
     function showPopup(achievement) {
         const popup = document.createElement('div');
         popup.className = 'achievement-popup';
@@ -50,10 +58,10 @@ const Achievements = (() => {
       </div>
     `;
         document.body.appendChild(popup);
+        SoundFX.play('win');
         setTimeout(() => popup.remove(), 4200);
     }
 
-    /* Check and notify */
     function checkAndNotify() {
         const newOnes = check();
         newOnes.forEach((a, i) => {

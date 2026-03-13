@@ -2,11 +2,12 @@
    mathsprint.js — Solve math problems fast
    ============================================ */
 const MathSprintGame = (() => {
-    let score, round, maxRounds, startTime;
+    let score, round, maxRounds, startTime, _ended;
 
     function init(container) {
-        score = 0; round = 0; maxRounds = 12;
+        score = 0; round = 0; maxRounds = 12; _ended = false;
         startTime = Date.now();
+        SoundFX.play('gameStart');
         nextProblem(container);
     }
 
@@ -17,7 +18,6 @@ const MathSprintGame = (() => {
         if (op === '+') { a = Math.floor(Math.random() * 50) + 1; b = Math.floor(Math.random() * 50) + 1; answer = a + b; }
         else if (op === '-') { a = Math.floor(Math.random() * 50) + 20; b = Math.floor(Math.random() * 20) + 1; answer = a - b; }
         else { a = Math.floor(Math.random() * 12) + 2; b = Math.floor(Math.random() * 12) + 2; answer = a * b; }
-        // Generate options
         const options = [answer];
         while (options.length < 4) {
             const fake = answer + (Math.floor(Math.random() * 11) - 5);
@@ -48,17 +48,25 @@ const MathSprintGame = (() => {
                     b.style.pointerEvents = 'none';
                     if (parseInt(b.dataset.val) === p.answer) b.classList.add('correct');
                 });
-                if (v === p.answer) { score += 10; } else { btn.classList.add('wrong'); }
+                if (v === p.answer) { score += 10; SoundFX.play('correct'); }
+                else { btn.classList.add('wrong'); SoundFX.play('wrong'); }
                 setTimeout(() => nextProblem(container), 600);
             });
         });
     }
 
     function endGame(container) {
+        if (_ended) return;
+        _ended = true;
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
         const won = score >= 80;
         Auth.recordGame('mathsprint', score, won);
-        if (won) GameUtils.confetti();
+        const p = Auth.getPlayer();
+        if (p && score > (p.mathsprintBest || 0)) {
+            p.mathsprintBest = score;
+            Auth.savePlayer(p);
+        }
+        if (won) { GameUtils.confetti(); SoundFX.play('win'); }
         const daily = DailyChallenge.getToday();
         if (daily.id === 'mathsprint' && !DailyChallenge.hasCompletedToday()) DailyChallenge.markCompleted();
         container.innerHTML = `

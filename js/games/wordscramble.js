@@ -4,10 +4,11 @@
 const WordScrambleGame = (() => {
     const WORDS = ['GALAXY', 'ROCKET', 'PLANET', 'CODING', 'PYTHON', 'GAMING', 'PUZZLE', 'DRAGON', 'CASTLE', 'KNIGHT',
         'SHIELD', 'PORTAL', 'MATRIX', 'CIPHER', 'BINARY', 'PIXEL', 'VECTOR', 'TURBO', 'ARCADE', 'LASER'];
-    let score, round, maxRounds, currentWord;
+    let score, round, maxRounds, currentWord, _ended;
 
     function init(container) {
-        score = 0; round = 0; maxRounds = 10;
+        score = 0; round = 0; maxRounds = 10; _ended = false;
+        SoundFX.play('gameStart');
         nextWord(container);
     }
 
@@ -56,18 +57,27 @@ const WordScrambleGame = (() => {
         if (guess === currentWord) {
             score += 10;
             fb.innerHTML = '<span style="color:var(--neon-green)">✅ Correct!</span>';
+            SoundFX.play('correct');
             setTimeout(() => nextWord(container), 800);
         } else {
             fb.innerHTML = '<span style="color:var(--neon-pink)">❌ Try again!</span>';
+            SoundFX.play('wrong');
             input.value = '';
             input.focus();
         }
     }
 
     function endGame(container) {
+        if (_ended) return;
+        _ended = true;
         const won = score >= 60;
         Auth.recordGame('wordscramble', score, won);
-        if (won) GameUtils.confetti();
+        const p = Auth.getPlayer();
+        if (p && score > (p.wordscrambleBest || 0)) {
+            p.wordscrambleBest = score;
+            Auth.savePlayer(p);
+        }
+        if (won) { GameUtils.confetti(); SoundFX.play('win'); }
         const daily = DailyChallenge.getToday();
         if (daily.id === 'wordscramble' && !DailyChallenge.hasCompletedToday()) DailyChallenge.markCompleted();
         container.innerHTML = `

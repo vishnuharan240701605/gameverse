@@ -2,11 +2,13 @@
    reaction.js — Reaction Time game
    ============================================ */
 const ReactionGame = (() => {
-  let state, timeout, startTime, times;
+  let state, timeout, startTime, times, _ended;
 
   function init(container) {
     state = 'idle';
     times = [];
+    _ended = false;
+    SoundFX.play('gameStart');
     render(container);
   }
 
@@ -47,11 +49,13 @@ const ReactionGame = (() => {
     } else if (state === 'waiting') {
       clearTimeout(timeout);
       state = 'early';
+      SoundFX.play('wrong');
       render(container);
     } else if (state === 'ready') {
       const reaction = Date.now() - startTime;
       times.push(reaction);
       state = 'idle';
+      SoundFX.play('correct');
 
       if (times.length >= 5) {
         finishGame(container);
@@ -62,6 +66,8 @@ const ReactionGame = (() => {
   }
 
   function finishGame(container) {
+    if (_ended) return;
+    _ended = true;
     const avg = Math.round(times.reduce((a, b) => a + b, 0) / times.length);
     const best = Math.min(...times);
     const score = Math.max(500 - avg, 10);
@@ -74,7 +80,7 @@ const ReactionGame = (() => {
     }
     const daily = DailyChallenge.getToday();
     if (daily.id === 'reaction' && !DailyChallenge.hasCompletedToday()) DailyChallenge.markCompleted();
-    if (won) GameUtils.confetti();
+    if (won) { GameUtils.confetti(); SoundFX.play('win'); }
 
     container.innerHTML = `
       <div class="game-over-overlay" style="position:relative;">

@@ -1,11 +1,12 @@
 /* ============================================
-   snake.js — Classic Snake game
+   snake.js — Classic Snake game (fixed)
    ============================================ */
 const SnakeGame = (() => {
     const GRID = 20, CELL = 18;
-    let snake, food, dir, nextDir, score, speed, interval, gameOver;
+    let snake, food, dir, nextDir, score, speed, interval, gameOver, _keyHandler;
 
     function init(container) {
+        cleanup();
         snake = [{ x: 10, y: 10 }];
         dir = { x: 1, y: 0 };
         nextDir = { x: 1, y: 0 };
@@ -15,8 +16,8 @@ const SnakeGame = (() => {
         placeFood();
         render(container);
         setupControls();
-        if (interval) clearInterval(interval);
         interval = setInterval(() => tick(container), speed);
+        SoundFX.play('gameStart');
     }
 
     function placeFood() {
@@ -80,11 +81,9 @@ const SnakeGame = (() => {
         dir = { ...nextDir };
         const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
 
-        // Wall collision
         if (head.x < 0 || head.x >= GRID || head.y < 0 || head.y >= GRID) {
             return endGame(container);
         }
-        // Self collision
         if (snake.some(s => s.x === head.x && s.y === head.y)) {
             return endGame(container);
         }
@@ -95,7 +94,6 @@ const SnakeGame = (() => {
             const scoreEl = document.getElementById('snake-score');
             if (scoreEl) scoreEl.textContent = score;
             placeFood();
-            // Speed up
             if (speed > 60) {
                 speed -= 5;
                 clearInterval(interval);
@@ -108,7 +106,8 @@ const SnakeGame = (() => {
     }
 
     function setupControls() {
-        document.onkeydown = (e) => {
+        if (_keyHandler) document.removeEventListener('keydown', _keyHandler);
+        _keyHandler = (e) => {
             const map = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0], w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0] };
             const d = map[e.key];
             if (d) {
@@ -118,6 +117,7 @@ const SnakeGame = (() => {
                 }
             }
         };
+        document.addEventListener('keydown', _keyHandler);
     }
 
     function setDir(x, y) {
@@ -127,9 +127,11 @@ const SnakeGame = (() => {
     }
 
     function endGame(container) {
+        if (gameOver) return; // prevent double trigger
         gameOver = true;
         clearInterval(interval);
-        document.onkeydown = null;
+        if (_keyHandler) { document.removeEventListener('keydown', _keyHandler); _keyHandler = null; }
+
         Auth.recordGame('snake', score, score >= 50);
         const p = Auth.getPlayer();
         if (p && score > (p.snakeBest || 0)) {
@@ -139,7 +141,7 @@ const SnakeGame = (() => {
         Achievements.checkAndNotify();
         const daily = DailyChallenge.getToday();
         if (daily.id === 'snake' && !DailyChallenge.hasCompletedToday()) DailyChallenge.markCompleted();
-        if (score >= 50) GameUtils.confetti();
+        if (score >= 50) { GameUtils.confetti(); SoundFX.play('win'); }
 
         const overlay = document.createElement('div');
         overlay.className = 'game-over-overlay';
@@ -155,5 +157,11 @@ const SnakeGame = (() => {
         if (area) { area.style.position = 'relative'; area.appendChild(overlay); }
     }
 
-    return { init, setDir, cleanup: () => { clearInterval(interval); document.onkeydown = null; gameOver = true; } };
+    function cleanup() {
+        clearInterval(interval);
+        if (_keyHandler) { document.removeEventListener('keydown', _keyHandler); _keyHandler = null; }
+        gameOver = true;
+    }
+
+    return { init, setDir, cleanup };
 })();
