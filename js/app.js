@@ -124,7 +124,7 @@ function navigate() {
 
   // Check onboarding redirect
   const player = Auth.getPlayer();
-  if (player && !player.onboardingComplete && route !== 'onboarding' && route !== 'login' && route !== 'register') {
+  if (player && !player.onboardingComplete && route !== 'onboarding' && route !== 'login' && route !== 'register' && route !== 'brain-test') {
     location.hash = '#onboarding';
     return;
   }
