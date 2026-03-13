@@ -96,6 +96,8 @@ const TicTacToeGame = (() => {
 
         const won = result === 'X';
         Auth.recordGame('tictactoe', won ? 30 : 5, won);
+        Auth.updateSkills(GAME_SKILL_MAP.tictactoe || {});
+        Analytics.recordSession('tictactoe', won ? 30 : 5, ['logic', 'analysis'], 0);
         if (won) {
             const p = Auth.getPlayer();
             if (p) { p.tttWins = (p.tttWins || 0) + 1; Auth.savePlayer(p); }

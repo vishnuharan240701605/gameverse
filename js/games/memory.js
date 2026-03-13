@@ -88,6 +88,8 @@ const MemoryGame = (() => {
         _ended = true;
         const score = Math.max(100 - moves * 2, 10);
         Auth.recordGame('memory', score, true);
+        Auth.updateSkills(GAME_SKILL_MAP.memory || {});
+        Analytics.recordSession('memory', score, ['memory', 'observation', 'visual'], 0);
         const p = Auth.getPlayer();
         if (p) {
             p.memoryWins = (p.memoryWins || 0) + 1;

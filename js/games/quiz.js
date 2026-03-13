@@ -71,6 +71,8 @@ const QuizGame = (() => {
         _ended = true;
         const won = score >= 50;
         Auth.recordGame('quiz', score, won);
+        Auth.updateSkills(GAME_SKILL_MAP.quiz || {});
+        Analytics.recordSession('quiz', score, ['logic', 'analysis', 'memory'], 0);
         const p = Auth.getPlayer();
         if (p && score > (p.quizBest || 0)) {
             p.quizBest = score;

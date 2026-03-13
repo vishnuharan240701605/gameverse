@@ -77,6 +77,8 @@ const WhackAMoleGame = (() => {
         clearTimeout(moleTimer);
         const won = score >= 15;
         Auth.recordGame('whackamole', score * 5, won);
+        Auth.updateSkills(GAME_SKILL_MAP.whackamole || {});
+        Analytics.recordSession('whackamole', score * 5, ['reaction', 'focus', 'observation'], 0);
         const p = Auth.getPlayer();
         if (p && (score * 5) > (p.whackamoleBest || 0)) {
             p.whackamoleBest = score * 5;

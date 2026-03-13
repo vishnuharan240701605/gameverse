@@ -1,18 +1,22 @@
 /* ============================================
-   auth.js — Multi-user Login/Register, XP/Level/Coins
+   auth.js — Brain Boost Challenge Auth System
+   Multi-user, XP/Level/Coins, Streak, Skills
    ============================================ */
 const Auth = (() => {
-    const USERS_KEY = 'gv_users';      // All registered users
-    const SESSION_KEY = 'gv_session';  // Current logged-in username
-    const REMEMBER_KEY = 'gv_remember';
+    const USERS_KEY = 'bb_users';
+    const SESSION_KEY = 'bb_session';
+    const REMEMBER_KEY = 'bb_remember';
 
-    /* ---------- Safe default player ---------- */
+    /* ---------- Default player with full skill model ---------- */
     function defaultPlayer(username, email, passHash, avatar) {
         return {
             username,
             email: email || '',
             passHash: passHash || '',
-            avatar: avatar || '🎮',
+            avatar: avatar || '🧠',
+            age: '',
+            education: '',
+            interests: [],
             gamesPlayed: 0,
             wins: 0,
             totalScore: 0,
@@ -20,23 +24,40 @@ const Auth = (() => {
             xp: 0,
             coins: 0,
             level: 1,
+            streak: 0,
+            lastLoginDate: new Date().toISOString().split('T')[0],
+            brainDominance: { left: 50, right: 50 },
+            brainAge: 0,
+            onboardingComplete: false,
+            difficulty: 'easy',
+            skillScores: {
+                memory: 0,
+                logic: 0,
+                creativity: 0,
+                focus: 0,
+                reaction: 0,
+                analysis: 0,
+                observation: 0,
+                visual: 0
+            },
             memoryWins: 0,
             snakeBest: 0,
             quizBest: 0,
             rpsBest: 0,
             tttWins: 0,
-            reactionBest: 0,       // ← FIX: was 9999, now 0
+            reactionBest: 0,
             colormatchBest: 0,
             mathsprintBest: 0,
             wordscrambleBest: 0,
             whackamoleBest: 0,
             gameScores: {},
             achievements: [],
+            activityHistory: [],
             createdAt: Date.now(),
         };
     }
 
-    /* ---------- Simple string hash (client-side only) ---------- */
+    /* ---------- Simple string hash ---------- */
     function hashPass(str) {
         let hash = 0;
         for (let i = 0; i < str.length; i++) {
@@ -49,7 +70,9 @@ const Auth = (() => {
 
     /* ---------- Users DB ---------- */
     function getAllUsers() {
-        const d = localStorage.getItem(USERS_KEY);
+        // Try new key first, fall back to old
+        let d = localStorage.getItem(USERS_KEY);
+        if (!d) d = localStorage.getItem('gv_users');
         if (!d) return {};
         try { return JSON.parse(d); } catch (e) { return {}; }
     }
@@ -58,38 +81,65 @@ const Auth = (() => {
         localStorage.setItem(USERS_KEY, JSON.stringify(users));
     }
 
-    /* ---------- Migration: convert old gv_player to new system ---------- */
+    /* ---------- Migration ---------- */
     function migrateOldData() {
+        // Migrate from old gv_player
         const old = localStorage.getItem('gv_player');
-        if (!old) return;
-        try {
-            const p = JSON.parse(old);
-            if (p && p.username) {
-                const users = getAllUsers();
-                if (!users[p.username]) {
-                    // Fix 9999 bug in old data
-                    if (p.reactionBest === 9999) p.reactionBest = 0;
-                    // Ensure all fields exist with safe defaults
-                    p.passHash = p.passHash || '';
-                    p.email = p.email || '';
-                    p.level = Math.floor((p.xp || 0) / 100) + 1;
-                    p.coins = Number(p.coins) || 0;
-                    p.totalScore = Number(p.totalScore) || 0;
-                    p.gamesPlayed = Number(p.gamesPlayed) || 0;
-                    p.highestScore = Number(p.highestScore) || 0;
-                    p.wins = Number(p.wins) || 0;
-                    p.xp = Number(p.xp) || 0;
-                    p.gameScores = p.gameScores || {};
-                    p.achievements = p.achievements || [];
-                    p.createdAt = p.createdAt || Date.now();
-                    users[p.username] = p;
-                    saveAllUsers(users);
-                    // Set session
-                    localStorage.setItem(SESSION_KEY, p.username);
+        if (old) {
+            try {
+                const p = JSON.parse(old);
+                if (p && p.username) {
+                    const users = getAllUsers();
+                    if (!users[p.username]) {
+                        if (p.reactionBest === 9999) p.reactionBest = 0;
+                        // Add new fields
+                        p.skillScores = p.skillScores || { memory: 0, logic: 0, creativity: 0, focus: 0, reaction: 0, analysis: 0, observation: 0, visual: 0 };
+                        p.brainDominance = p.brainDominance || { left: 50, right: 50 };
+                        p.brainAge = p.brainAge || 0;
+                        p.streak = p.streak || 0;
+                        p.lastLoginDate = p.lastLoginDate || new Date().toISOString().split('T')[0];
+                        p.onboardingComplete = p.onboardingComplete || false;
+                        p.activityHistory = p.activityHistory || [];
+                        p.age = p.age || '';
+                        p.education = p.education || '';
+                        p.interests = p.interests || [];
+                        p.difficulty = p.difficulty || 'easy';
+                        users[p.username] = p;
+                        saveAllUsers(users);
+                        localStorage.setItem(SESSION_KEY, p.username);
+                    }
+                    localStorage.removeItem('gv_player');
                 }
-                localStorage.removeItem('gv_player');
-            }
-        } catch (e) { /* ignore corrupt data */ }
+            } catch (e) {}
+        }
+
+        // Also migrate gv_users to bb_users
+        const gvUsers = localStorage.getItem('gv_users');
+        if (gvUsers && !localStorage.getItem(USERS_KEY)) {
+            try {
+                const parsed = JSON.parse(gvUsers);
+                Object.values(parsed).forEach(p => {
+                    p.skillScores = p.skillScores || { memory: 0, logic: 0, creativity: 0, focus: 0, reaction: 0, analysis: 0, observation: 0, visual: 0 };
+                    p.brainDominance = p.brainDominance || { left: 50, right: 50 };
+                    p.brainAge = p.brainAge || 0;
+                    p.streak = p.streak || 0;
+                    p.lastLoginDate = p.lastLoginDate || new Date().toISOString().split('T')[0];
+                    p.onboardingComplete = p.onboardingComplete || false;
+                    p.activityHistory = p.activityHistory || [];
+                    p.age = p.age || '';
+                    p.education = p.education || '';
+                    p.interests = p.interests || [];
+                    p.difficulty = p.difficulty || 'easy';
+                });
+                saveAllUsers(parsed);
+            } catch (e) {}
+        }
+
+        // Migrate session keys
+        const gvSession = localStorage.getItem('gv_session');
+        if (gvSession && !localStorage.getItem(SESSION_KEY)) {
+            localStorage.setItem(SESSION_KEY, gvSession);
+        }
     }
 
     /* ---------- Session ---------- */
@@ -103,10 +153,10 @@ const Auth = (() => {
         const users = getAllUsers();
         const p = users[uname];
         if (!p) return null;
-        // Live migration: ensure all fields
-        if (p.reactionBest === 9999) p.reactionBest = 0;  // FIX 9999
+        // Live migration
+        if (p.reactionBest === 9999) p.reactionBest = 0;
         if (p.coins === undefined) p.coins = 0;
-        if (p.avatar === undefined) p.avatar = '🎮';
+        if (p.avatar === undefined) p.avatar = '🧠';
         if (p.highestScore === undefined) p.highestScore = 0;
         if (p.colormatchBest === undefined) p.colormatchBest = 0;
         if (p.mathsprintBest === undefined) p.mathsprintBest = 0;
@@ -115,6 +165,17 @@ const Auth = (() => {
         if (p.level === undefined) p.level = getLevel(p.xp);
         if (p.gameScores === undefined) p.gameScores = {};
         if (p.achievements === undefined) p.achievements = [];
+        if (!p.skillScores) p.skillScores = { memory: 0, logic: 0, creativity: 0, focus: 0, reaction: 0, analysis: 0, observation: 0, visual: 0 };
+        if (!p.brainDominance) p.brainDominance = { left: 50, right: 50 };
+        if (p.brainAge === undefined) p.brainAge = 0;
+        if (p.streak === undefined) p.streak = 0;
+        if (!p.lastLoginDate) p.lastLoginDate = new Date().toISOString().split('T')[0];
+        if (p.onboardingComplete === undefined) p.onboardingComplete = false;
+        if (!p.activityHistory) p.activityHistory = [];
+        if (!p.age) p.age = '';
+        if (!p.education) p.education = '';
+        if (!p.interests) p.interests = [];
+        if (!p.difficulty) p.difficulty = 'easy';
         return p;
     }
 
@@ -122,7 +183,6 @@ const Auth = (() => {
         const uname = getSessionUser();
         if (!uname) return;
         const users = getAllUsers();
-        // Ensure all scores are numbers, never strings
         data.totalScore = Number(data.totalScore) || 0;
         data.gamesPlayed = Number(data.gamesPlayed) || 0;
         data.wins = Number(data.wins) || 0;
@@ -145,7 +205,7 @@ const Auth = (() => {
         if (users[username]) return { ok: false, msg: 'Username already taken' };
 
         const ph = password ? hashPass(password) : '';
-        users[username] = defaultPlayer(username, email, ph, avatar || '🎮');
+        users[username] = defaultPlayer(username, email, ph, avatar || '🧠');
         saveAllUsers(users);
         localStorage.setItem(SESSION_KEY, username);
         return { ok: true };
@@ -156,7 +216,16 @@ const Auth = (() => {
         if (!username || !username.trim()) return { ok: false, msg: 'Username is required' };
         username = username.trim();
         const users = getAllUsers();
-        const user = users[username];
+
+        // Support email login
+        let user = users[username];
+        if (!user) {
+            const byEmail = Object.values(users).find(u => u.email && u.email.toLowerCase() === username.toLowerCase());
+            if (byEmail) {
+                user = byEmail;
+                username = byEmail.username;
+            }
+        }
 
         if (!user) return { ok: false, msg: 'User not found. Please register first.' };
         if (user.passHash && password && hashPass(password) !== user.passHash) {
@@ -166,16 +235,43 @@ const Auth = (() => {
             return { ok: false, msg: 'Password required' };
         }
 
+        // Update streak
+        updateStreak(user);
+        users[username] = user;
+        saveAllUsers(users);
+
         localStorage.setItem(SESSION_KEY, username);
         if (remember) localStorage.setItem(REMEMBER_KEY, username);
         return { ok: true };
+    }
+
+    /* ---------- Streak Logic ---------- */
+    function updateStreak(player) {
+        const today = new Date().toISOString().split('T')[0];
+        const last = player.lastLoginDate || '';
+        
+        if (last === today) return; // Already logged in today
+
+        const lastDate = new Date(last);
+        const todayDate = new Date(today);
+        const diffDays = Math.floor((todayDate - lastDate) / 86400000);
+
+        if (diffDays === 1) {
+            player.streak = (player.streak || 0) + 1;
+        } else if (diffDays > 1) {
+            player.streak = 1;
+        }
+
+        player.lastLoginDate = today;
     }
 
     /* ---------- Guest ---------- */
     function loginAsGuest() {
         const guestName = 'Guest_' + Math.random().toString(36).slice(2, 7);
         const users = getAllUsers();
-        users[guestName] = defaultPlayer(guestName, '', '', '👤');
+        const p = defaultPlayer(guestName, '', '', '👤');
+        p.onboardingComplete = true; // Skip onboarding for guests
+        users[guestName] = p;
         saveAllUsers(users);
         localStorage.setItem(SESSION_KEY, guestName);
         return guestName;
@@ -194,7 +290,6 @@ const Auth = (() => {
 
     /* ---------- Levels / XP ---------- */
     function getLevel(xp) {
-        // Tiered: 0→L1, 200→L2, 500→L3, 900→L4, 1400→L5, ...
         xp = Number(xp) || 0;
         let lv = 1, threshold = 0, step = 200;
         while (xp >= threshold + step) {
@@ -244,11 +339,27 @@ const Auth = (() => {
         return p ? (Number(p.coins) || 0) : 0;
     }
 
-    /* ---------- Record game (ONLY called by game logic) ---------- */
+    /* ---------- Cognitive Skills Update ---------- */
+    function updateSkills(skillMap) {
+        const p = getPlayer();
+        if (!p) return;
+        if (!p.skillScores) p.skillScores = {};
+
+        Object.entries(skillMap).forEach(([skill, delta]) => {
+            const current = Number(p.skillScores[skill]) || 0;
+            // Smooth increase: diminishing returns as score gets higher
+            const boost = Math.max(1, Math.round(delta * (1 - current / 150)));
+            p.skillScores[skill] = Math.min(100, current + boost);
+        });
+
+        savePlayer(p);
+    }
+
+    /* ---------- Record game ---------- */
     function recordGame(gameName, score, won) {
         const p = getPlayer();
         if (!p) return;
-        score = Number(score) || 0;             // Always parse as number
+        score = Number(score) || 0;
         p.gamesPlayed = (Number(p.gamesPlayed) || 0) + 1;
         p.totalScore = (Number(p.totalScore) || 0) + score;
         if (score > (Number(p.highestScore) || 0)) p.highestScore = score;
@@ -257,12 +368,14 @@ const Auth = (() => {
         if (!p.gameScores[gameName] || score > Number(p.gameScores[gameName])) {
             p.gameScores[gameName] = score;
         }
-        // XP: 10 base + 25 bonus for win
         const oldLv = getLevel(p.xp);
         p.xp = (Number(p.xp) || 0) + 10 + (won ? 25 : 0);
         p.level = getLevel(p.xp);
-        // Coins: 5 base + 15 bonus for win
         p.coins = (Number(p.coins) || 0) + 5 + (won ? 15 : 0);
+
+        // Update streak on game play
+        updateStreak(p);
+
         savePlayer(p);
         if (p.level > oldLv) showLevelUp(p.level);
         Leaderboard.update(p.username, p.totalScore, p.gamesPlayed);
@@ -311,18 +424,23 @@ const Auth = (() => {
         }
     }
 
-    /* ---------- Init: migrate old data ---------- */
+    /* ---------- Init ---------- */
     migrateOldData();
-    // Auto-login from remember
     if (!getSessionUser()) {
         const rem = localStorage.getItem(REMEMBER_KEY);
         if (rem) localStorage.setItem(SESSION_KEY, rem);
+    }
+    // Update streak on load
+    const currentPlayer = getPlayer();
+    if (currentPlayer) {
+        updateStreak(currentPlayer);
+        savePlayer(currentPlayer);
     }
 
     return {
         getPlayer, savePlayer, login, register, loginAsGuest, logout,
         isLoggedIn, getLevel, getXpForLevel, getXpProgress,
         addXp, addCoins, getCoins, recordGame, setAvatar, updateNavbar,
-        hashPass, getAllUsers
+        hashPass, getAllUsers, updateSkills, defaultPlayer
     };
 })();

@@ -61,6 +61,8 @@ const ColorMatchGame = (() => {
         _ended = true;
         const won = score >= 80;
         Auth.recordGame('colormatch', score, won);
+        Auth.updateSkills(GAME_SKILL_MAP.colormatch || {});
+        Analytics.recordSession('colormatch', score, ['observation', 'focus', 'visual'], 0);
         const p = Auth.getPlayer();
         if (p && score > (p.colormatchBest || 0)) {
             p.colormatchBest = score;

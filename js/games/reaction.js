@@ -73,6 +73,8 @@ const ReactionGame = (() => {
     const score = Math.max(500 - avg, 10);
     const won = avg < 400;
     Auth.recordGame('reaction', score, won);
+    Auth.updateSkills(GAME_SKILL_MAP.reaction || {});
+    Analytics.recordSession('reaction', score, ['reaction', 'focus'], 0);
     const p = Auth.getPlayer();
     if (p && (p.reactionBest === 0 || best < (p.reactionBest || Infinity))) {
       p.reactionBest = best;

@@ -51,6 +51,8 @@ const RPSGame = (() => {
         }
         // Record game once per round (not separately for win/lose)
         Auth.recordGame('rps', won ? 15 : 0, won);
+        Auth.updateSkills(GAME_SKILL_MAP.rps || {});
+        Analytics.recordSession('rps', won ? 15 : 0, ['logic', 'reaction'], 0);
         SoundFX.play(won ? 'win' : 'click');
         const daily = DailyChallenge.getToday();
         if (daily.id === 'rps' && !DailyChallenge.hasCompletedToday() && won) DailyChallenge.markCompleted();

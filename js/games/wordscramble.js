@@ -72,6 +72,8 @@ const WordScrambleGame = (() => {
         _ended = true;
         const won = score >= 60;
         Auth.recordGame('wordscramble', score, won);
+        Auth.updateSkills(GAME_SKILL_MAP.wordscramble || {});
+        Analytics.recordSession('wordscramble', score, ['memory', 'creativity', 'analysis'], 0);
         const p = Auth.getPlayer();
         if (p && score > (p.wordscrambleBest || 0)) {
             p.wordscrambleBest = score;

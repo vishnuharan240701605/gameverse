@@ -133,6 +133,8 @@ const SnakeGame = (() => {
         if (_keyHandler) { document.removeEventListener('keydown', _keyHandler); _keyHandler = null; }
 
         Auth.recordGame('snake', score, score >= 50);
+        Auth.updateSkills(GAME_SKILL_MAP.snake || {});
+        Analytics.recordSession('snake', score, ['focus', 'reaction', 'visual'], 0);
         const p = Auth.getPlayer();
         if (p && score > (p.snakeBest || 0)) {
             p.snakeBest = score;

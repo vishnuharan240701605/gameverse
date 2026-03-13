@@ -61,6 +61,8 @@ const MathSprintGame = (() => {
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
         const won = score >= 80;
         Auth.recordGame('mathsprint', score, won);
+        Auth.updateSkills(GAME_SKILL_MAP.mathsprint || {});
+        Analytics.recordSession('mathsprint', score, ['logic', 'analysis', 'focus'], 0);
         const p = Auth.getPlayer();
         if (p && score > (p.mathsprintBest || 0)) {
             p.mathsprintBest = score;
