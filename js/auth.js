@@ -112,7 +112,7 @@ const Auth = (() => {
         if (p.mathsprintBest === undefined) p.mathsprintBest = 0;
         if (p.wordscrambleBest === undefined) p.wordscrambleBest = 0;
         if (p.whackamoleBest === undefined) p.whackamoleBest = 0;
-        if (p.level === undefined) p.level = Math.floor((p.xp || 0) / 100) + 1;
+        if (p.level === undefined) p.level = getLevel(p.xp);
         if (p.gameScores === undefined) p.gameScores = {};
         if (p.achievements === undefined) p.achievements = [];
         return p;
@@ -129,7 +129,7 @@ const Auth = (() => {
         data.xp = Number(data.xp) || 0;
         data.coins = Number(data.coins) || 0;
         data.highestScore = Number(data.highestScore) || 0;
-        data.level = Math.floor((data.xp || 0) / 100) + 1;
+        data.level = getLevel(data.xp);
         users[uname] = data;
         saveAllUsers(users);
     }

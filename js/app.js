@@ -185,7 +185,6 @@ function renderHome() {
       <button class="hero-btn" onclick="location.hash='#games'">🎮 PLAY NOW</button>
       <div class="hero-stats">
         <div class="hero-stat"><div class="hero-stat-value">10</div><div class="hero-stat-label">Games</div></div>
-        <div class="hero-stat"><div class="hero-stat-value">16</div><div class="hero-stat-label">Achievements</div></div>
         <div class="hero-stat"><div class="hero-stat-value">∞</div><div class="hero-stat-label">Fun</div></div>
       </div>
     </section>

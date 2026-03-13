@@ -7,7 +7,7 @@ const RPSGame = (() => {
     let scores;
 
     function init(container) {
-        scores = scores || { player: 0, cpu: 0 };
+        scores = { player: 0, cpu: 0 };
         render(container, '', '', '');
     }
 
