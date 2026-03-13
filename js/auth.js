@@ -28,7 +28,7 @@ const Auth = (() => {
             lastLoginDate: new Date().toISOString().split('T')[0],
             brainDominance: { left: 50, right: 50 },
             brainAge: 0,
-            onboardingComplete: true,
+            onboardingComplete: false,
             difficulty: 'easy',
             skillScores: {
                 memory: 0,
