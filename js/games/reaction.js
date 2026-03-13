@@ -74,7 +74,7 @@ const ReactionGame = (() => {
     const won = avg < 400;
     Auth.recordGame('reaction', score, won);
     const p = Auth.getPlayer();
-    if (p && best < (p.reactionBest || 9999)) {
+    if (p && (p.reactionBest === 0 || best < (p.reactionBest || Infinity))) {
       p.reactionBest = best;
       Auth.savePlayer(p);
     }

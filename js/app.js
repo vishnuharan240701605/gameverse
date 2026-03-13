@@ -1,5 +1,5 @@
 /* ============================================
-   app.js — SPA Router, Pages, Loader, Utils v3
+   app.js — SPA Router, Pages, Loader, Utils v4
    ============================================ */
 
 const GameUtils = {
@@ -58,6 +58,8 @@ const AVATARS = [
   { emoji: '🔥', name: 'Flame', cost: 1000 },
 ];
 
+const REGISTER_AVATARS = ['🎮', '👤', '🐉', '🦊', '🤖', '👾', '🦁', '🧙', '🔥', '🐺', '🦅', '🎯'];
+
 const GAME_MODULES = { quiz: QuizGame, memory: MemoryGame, snake: SnakeGame, tictactoe: TicTacToeGame, rps: RPSGame, reaction: ReactionGame, colormatch: ColorMatchGame, mathsprint: MathSprintGame, wordscramble: WordScrambleGame, whackamole: WhackAMoleGame };
 
 /* --- Scroll Reveal Observer --- */
@@ -92,7 +94,6 @@ function runLoader(cb) {
 /* --- Router --- */
 function getRoute() { return (location.hash.slice(1) || 'home'); }
 
-/* --- Cleanup all running game timers --- */
 function cleanupGames() {
   if (typeof SnakeGame !== 'undefined' && SnakeGame.cleanup) SnakeGame.cleanup();
   if (typeof WhackAMoleGame !== 'undefined' && WhackAMoleGame.cleanup) WhackAMoleGame.cleanup();
@@ -111,7 +112,8 @@ function navigate() {
   else if (route === 'leaderboard') main.innerHTML = renderLeaderboard();
   else if (route === 'achievements') main.innerHTML = renderAchievementsPage();
   else if (route === 'profile') main.innerHTML = renderProfile();
-  else if (route === 'login') main.innerHTML = renderLogin();
+  else if (route === 'login') main.innerHTML = renderLoginPage();
+  else if (route === 'register') main.innerHTML = renderRegisterPage();
   else if (route.startsWith('game/')) renderGamePage(main, route.split('/')[1]);
   else main.innerHTML = renderHome();
 
@@ -212,9 +214,6 @@ function renderHome() {
       <h2 class="section-title reveal">🏅 Achievements</h2>
       <p class="section-subtitle reveal">Unlock badges by playing and reaching milestones</p>
       <div class="achievements-grid reveal">${Achievements.renderAchievementsGrid()}</div>
-      <div style="text-align:center;margin-top:24px" class="reveal">
-        <a href="#achievements" class="game-card-btn">View All Achievements →</a>
-      </div>
     </section>
     <section class="section">
       <h2 class="section-title reveal">About GameVerse</h2>
@@ -268,8 +267,6 @@ function filterGames() {
 function renderGamePage(main, gid) {
   const def = GAME_DEFS.find(g => g.id === gid);
   if (!def) { main.innerHTML = renderHome(); return; }
-
-  // Show instructions modal first, then init game
   main.innerHTML = `<div class="page game-page">
     <div class="game-header"><h2>${def.icon} ${def.name}</h2>
       <div class="game-controls">
@@ -279,17 +276,12 @@ function renderGamePage(main, gid) {
     </div>
     <div class="game-area" id="game-area"><div class="game-loading"><div class="game-loading-spinner"></div><div style="margin-top:16px;color:var(--text-muted);font-size:.85rem;">Loading game...</div></div></div>
   </div>`;
-
   const area = document.getElementById('game-area');
   const mod = GAME_MODULES[gid];
-
   showGameInstructions(gid, () => {
     if (mod) {
       mod.init(area);
-      document.getElementById('game-restart-btn').addEventListener('click', () => {
-        cleanupGames();
-        mod.init(area);
-      });
+      document.getElementById('game-restart-btn').addEventListener('click', () => { cleanupGames(); mod.init(area); });
     }
   });
 }
@@ -318,18 +310,190 @@ function renderAchievementsPage() {
   </section></div>`;
 }
 
+/* ============================================
+   LOGIN PAGE
+   ============================================ */
+function renderLoginPage() {
+  const p = Auth.getPlayer();
+  if (p) {
+    return `<div class="page login-page"><div class="auth-card">
+      <div class="auth-avatar-display">${p.avatar || '🎮'}</div>
+      <h2 class="auth-title">Welcome Back!</h2>
+      <p class="auth-subtitle">Logged in as <strong style="color:var(--neon-cyan)">${p.username}</strong></p>
+      <p style="color:var(--text-muted);font-size:.82rem;margin-bottom:20px;">Level ${Auth.getLevel(p.xp)} • 🪙 ${p.coins || 0} coins • ${p.gamesPlayed || 0} games played</p>
+      <button class="auth-btn primary" onclick="location.hash='#games'">🎮 Play Games</button>
+      <button class="auth-btn secondary" onclick="location.hash='#profile'">👤 View Profile</button>
+      <button class="auth-btn ghost" onclick="handleLogout()">🚪 Logout</button>
+    </div></div>`;
+  }
+  return `<div class="page login-page"><div class="auth-card">
+    <div class="auth-logo">🎮</div>
+    <h2 class="auth-title">Welcome to GameVerse</h2>
+    <p class="auth-subtitle">Sign in to track your scores, earn XP, and unlock achievements</p>
+    <div id="auth-error" class="auth-error" style="display:none;"></div>
+    <div class="auth-field">
+      <label class="auth-label">Username</label>
+      <input type="text" class="auth-input" id="login-username" placeholder="Enter your username" maxlength="20" onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()">
+    </div>
+    <div class="auth-field">
+      <label class="auth-label">Password</label>
+      <div class="auth-password-wrap">
+        <input type="password" class="auth-input" id="login-password" placeholder="Enter your password" maxlength="32" onkeydown="if(event.key==='Enter')handleLogin()">
+        <button class="auth-eye" onclick="togglePasswordVisibility('login-password', this)" type="button">👁️</button>
+      </div>
+    </div>
+    <div class="auth-row">
+      <label class="auth-checkbox-wrap"><input type="checkbox" id="login-remember"> <span>Remember me</span></label>
+    </div>
+    <button class="auth-btn primary" onclick="handleLogin()">🚀 LOGIN</button>
+    <div class="auth-divider"><span>or</span></div>
+    <button class="auth-btn ghost" onclick="handleGuestLogin()">👤 Play as Guest</button>
+    <p class="auth-footer-text">Don't have an account? <a href="#register" class="auth-link">Register here</a></p>
+  </div></div>`;
+}
+
+/* ============================================
+   REGISTER PAGE
+   ============================================ */
+function renderRegisterPage() {
+  return `<div class="page login-page"><div class="auth-card">
+    <div class="auth-logo">🚀</div>
+    <h2 class="auth-title">Join GameVerse</h2>
+    <p class="auth-subtitle">Create an account to save your progress and compete</p>
+    <div id="auth-error" class="auth-error" style="display:none;"></div>
+    <div class="auth-field">
+      <label class="auth-label">Username</label>
+      <input type="text" class="auth-input" id="reg-username" placeholder="Choose a username" maxlength="20">
+    </div>
+    <div class="auth-field">
+      <label class="auth-label">Email <span style="color:var(--text-muted);font-size:.7rem">(optional)</span></label>
+      <input type="email" class="auth-input" id="reg-email" placeholder="your@email.com" maxlength="50">
+    </div>
+    <div class="auth-field">
+      <label class="auth-label">Password</label>
+      <div class="auth-password-wrap">
+        <input type="password" class="auth-input" id="reg-password" placeholder="Min 4 characters" maxlength="32">
+        <button class="auth-eye" onclick="togglePasswordVisibility('reg-password', this)" type="button">👁️</button>
+      </div>
+    </div>
+    <div class="auth-field">
+      <label class="auth-label">Confirm Password</label>
+      <div class="auth-password-wrap">
+        <input type="password" class="auth-input" id="reg-confirm" placeholder="Re-enter password" maxlength="32" onkeydown="if(event.key==='Enter')handleRegister()">
+        <button class="auth-eye" onclick="togglePasswordVisibility('reg-confirm', this)" type="button">👁️</button>
+      </div>
+    </div>
+    <div class="auth-field">
+      <label class="auth-label">Choose Avatar</label>
+      <div class="auth-avatar-grid" id="avatar-grid">
+        ${REGISTER_AVATARS.map((a, i) => `<div class="auth-avatar-option ${i === 0 ? 'selected' : ''}" data-avatar="${a}" onclick="selectRegAvatar(this)">${a}</div>`).join('')}
+      </div>
+    </div>
+    <button class="auth-btn primary" onclick="handleRegister()">🎮 CREATE ACCOUNT</button>
+    <div class="auth-divider"><span>or</span></div>
+    <button class="auth-btn ghost" onclick="handleGuestLogin()">👤 Play as Guest</button>
+    <p class="auth-footer-text">Already have an account? <a href="#login" class="auth-link">Login here</a></p>
+  </div></div>`;
+}
+
+/* ============================================
+   AUTH HANDLERS
+   ============================================ */
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.style.animation = 'none';
+  requestAnimationFrame(() => { el.style.animation = 'authShake .4s ease'; });
+}
+
+function togglePasswordVisibility(inputId, btn) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    btn.textContent = '👁️';
+  }
+}
+
+function selectRegAvatar(el) {
+  document.querySelectorAll('.auth-avatar-option').forEach(a => a.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function handleLogin() {
+  const u = (document.getElementById('login-username')?.value || '').trim();
+  const p = document.getElementById('login-password')?.value || '';
+  const remember = document.getElementById('login-remember')?.checked || false;
+  if (!u) { showAuthError('Please enter your username'); return; }
+  const result = Auth.login(u, p, remember);
+  if (!result.ok) { showAuthError(result.msg); return; }
+  Auth.updateNavbar();
+  SoundFX.play('win');
+  GameUtils.confetti();
+  location.hash = '#home';
+}
+
+function handleRegister() {
+  const u = (document.getElementById('reg-username')?.value || '').trim();
+  const e = (document.getElementById('reg-email')?.value || '').trim();
+  const p = document.getElementById('reg-password')?.value || '';
+  const c = document.getElementById('reg-confirm')?.value || '';
+  const avatarEl = document.querySelector('.auth-avatar-option.selected');
+  const avatar = avatarEl ? avatarEl.dataset.avatar : '🎮';
+
+  if (!u) { showAuthError('Please choose a username'); return; }
+  if (u.length < 3) { showAuthError('Username must be at least 3 characters'); return; }
+  if (!p) { showAuthError('Please enter a password'); return; }
+  if (p.length < 4) { showAuthError('Password must be at least 4 characters'); return; }
+  if (p !== c) { showAuthError('Passwords do not match'); return; }
+
+  const result = Auth.register(u, e, p, avatar);
+  if (!result.ok) { showAuthError(result.msg); return; }
+
+  Auth.updateNavbar();
+  SoundFX.play('win');
+  GameUtils.confetti();
+  location.hash = '#home';
+}
+
+function handleGuestLogin() {
+  Auth.loginAsGuest();
+  Auth.updateNavbar();
+  SoundFX.play('gameStart');
+  location.hash = '#games';
+}
+
+function handleLogout() {
+  Auth.logout();
+  SoundFX.play('click');
+  location.hash = '#login';
+}
+
+/* ============================================
+   PROFILE PAGE
+   ============================================ */
 function renderProfile() {
   const p = Auth.getPlayer();
-  if (!p) return `<div class="page login-page"><div class="login-card"><h2>Profile</h2><p>Please log in to view your profile.</p><button class="login-btn" onclick="location.hash='#login'">Go to Login</button></div></div>`;
+  if (!p) return `<div class="page login-page"><div class="auth-card"><h2 class="auth-title">Profile</h2><p class="auth-subtitle">Please log in to view your profile.</p><button class="auth-btn primary" onclick="location.hash='#login'">Go to Login</button></div></div>`;
   const lv = Auth.getLevel(p.xp), xpProg = Auth.getXpProgress(p.xp);
   const avatar = p.avatar || '🎮';
+  const nextLvXp = Auth.getXpForLevel(lv + 1);
+  const currLvXp = Auth.getXpForLevel(lv);
   return `<div class="page"><section class="section">
     <div class="profile-header reveal">
       <div class="profile-avatar">${avatar}</div>
       <div class="profile-info">
         <h2>${p.username}</h2>
         <div class="profile-level"><span class="badge">Level ${lv}</span> <span class="coin-badge-lg">🪙 ${p.coins || 0}</span></div>
-        <div class="xp-bar-container"><div class="xp-bar-track"><div class="xp-bar-fill" style="width:${xpProg}%"></div></div><div class="xp-text">${xpProg}/100 XP to Level ${lv + 1}</div></div>
+        <div class="xp-bar-container">
+          <div class="xp-bar-track"><div class="xp-bar-fill xp-bar-animated" style="width:${xpProg}%"></div></div>
+          <div class="xp-text">${(Number(p.xp)||0) - currLvXp} / ${nextLvXp - currLvXp} XP to Level ${lv + 1}</div>
+        </div>
       </div>
     </div>
     <div class="profile-stats-grid">
@@ -345,7 +509,7 @@ function renderProfile() {
     <p class="section-subtitle reveal">Spend coins to unlock avatars</p>
     <div class="avatar-grid reveal">
       ${AVATARS.map(a => {
-        const owned = (p.coins || 0) >= a.cost || a.cost === 0;
+        const owned = (Number(p.coins) || 0) >= a.cost || a.cost === 0;
         const selected = avatar === a.emoji;
         return `<div class="avatar-card ${selected ? 'selected' : ''} ${owned ? 'owned' : 'locked'}" onclick="${owned ? `selectAvatar('${a.emoji}')` : ''}">
           <div class="avatar-emoji">${a.emoji}</div>
@@ -363,11 +527,15 @@ function renderProfile() {
     <p class="section-subtitle reveal">Personal records across all games</p>
     <div class="profile-stats-grid">
       ${GAME_DEFS.map((g, i) => {
-        let v = p[g.bestKey] || 0;
+        let v = Number(p[g.bestKey]) || 0;
         let lb = g.bestLabel;
-        if (g.isTime) { v = v === 9999 || v === 0 ? '—' : v + 'ms'; }
+        if (g.isTime) { v = v === 0 ? '—' : v + 'ms'; }
         return `<div class="profile-stat-card reveal" style="transition-delay:${i * .06}s"><div style="font-size:1.5rem;margin-bottom:4px">${g.icon}</div><div class="stat-value">${v}</div><div class="stat-label">${g.name}<br>${lb}</div></div>`;
       }).join('')}
+    </div>
+
+    <div style="text-align:center;margin-top:40px" class="reveal">
+      <button class="auth-btn ghost" onclick="handleLogout()" style="max-width:200px;margin:0 auto;">🚪 Logout</button>
     </div>
   </section></div>`;
 }
@@ -376,20 +544,6 @@ function selectAvatar(emoji) {
   Auth.setAvatar(emoji);
   SoundFX.play('correct');
   navigate();
-}
-
-function renderLogin() {
-  const p = Auth.getPlayer();
-  if (p) return `<div class="page login-page"><div class="login-card"><h2>Welcome Back!</h2><p>Logged in as <strong style="color:var(--neon-cyan)">${p.username}</strong></p><button class="login-btn" onclick="location.hash='#games'" style="margin-top:12px">🎮 Play Games</button><button class="login-btn" onclick="location.hash='#profile'" style="margin-top:12px;background:var(--bg-glass);border:1px solid var(--border-glass)">👤 View Profile</button></div></div>`;
-  return `<div class="page login-page"><div class="login-card"><h2>Join GameVerse</h2><p>Enter your username to start playing, earning XP, and unlocking achievements.</p><input type="text" class="login-input" id="login-username" placeholder="Enter your username" maxlength="20" onkeydown="if(event.key==='Enter')handleLogin()"><button class="login-btn" onclick="handleLogin()">🚀 START PLAYING</button></div></div>`;
-}
-
-function handleLogin() {
-  const i = document.getElementById('login-username');
-  if (!i) return;
-  const u = i.value.trim();
-  if (!u) { i.style.borderColor = 'var(--neon-pink)'; return; }
-  Auth.login(u); Auth.updateNavbar(); GameUtils.confetti(); SoundFX.play('win'); location.hash = '#home';
 }
 
 /* ============================================
