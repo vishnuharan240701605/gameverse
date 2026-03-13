@@ -122,12 +122,7 @@ function navigate() {
   document.getElementById('nav-links').classList.remove('open');
   document.getElementById('nav-hamburger').classList.remove('active');
 
-  // Check onboarding redirect
   const player = Auth.getPlayer();
-  if (player && !player.onboardingComplete && route !== 'onboarding' && route !== 'login' && route !== 'register' && route !== 'brain-test') {
-    location.hash = '#onboarding';
-    return;
-  }
 
   if (route === 'home') main.innerHTML = renderHome();
   else if (route === 'games') main.innerHTML = renderGames();
@@ -684,7 +679,7 @@ function handleLogin() {
   SoundFX.play('win');
   GameUtils.confetti();
   const player = Auth.getPlayer();
-  location.hash = player && !player.onboardingComplete ? '#onboarding' : '#home';
+  location.hash = '#home';
 }
 
 function handleRegister() {
@@ -707,7 +702,7 @@ function handleRegister() {
   Auth.updateNavbar();
   SoundFX.play('win');
   GameUtils.confetti();
-  location.hash = '#onboarding';
+  location.hash = '#home';
 }
 
 function handleGuestLogin() {
