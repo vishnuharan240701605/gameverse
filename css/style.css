@@ -2805,3 +2805,185 @@ body::after {
     font-size: 1.2rem;
   }
 }
+
+/* ============================================
+   PREMIUM UI EFFECTS
+   ============================================ */
+
+/* ---- Card Shine / Glare Effect ---- */
+.game-card::after,
+.profile-stat-card::after {
+  background: radial-gradient(
+    circle at var(--shine-x, -100%) var(--shine-y, -100%),
+    rgba(255, 255, 255, .06) 0%,
+    transparent 60%
+  );
+}
+
+/* ---- Hover Spark Particles ---- */
+.card-spark {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--neon-cyan);
+  box-shadow: 0 0 6px var(--neon-cyan), 0 0 12px var(--neon-cyan);
+  pointer-events: none;
+  z-index: 10;
+  animation: sparkFly .6s ease-out forwards;
+}
+
+@keyframes sparkFly {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx, 20px), var(--dy, -20px)) scale(0);
+  }
+}
+
+/* ---- Rotating Gradient Border on Game Cards ---- */
+@property --angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.game-card::before {
+  background: conic-gradient(
+    from var(--angle, 0deg),
+    var(--neon-cyan), var(--neon-purple), var(--neon-pink), var(--neon-cyan)
+  );
+  animation: rotateBorder 4s linear infinite;
+}
+
+@keyframes rotateBorder {
+  to { --angle: 360deg; }
+}
+
+/* ---- Profile Stat Card glow pulse ---- */
+.profile-stat-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+  animation: statCardGlow 3s ease-in-out infinite;
+}
+
+@keyframes statCardGlow {
+  0%, 100% { opacity: 0; transform: translateX(-100%); }
+  50% { opacity: 1; transform: translateX(100%); }
+}
+
+/* ---- Achievement card locked state shimmer ---- */
+.achievement-card:not(.unlocked) {
+  position: relative;
+  overflow: hidden;
+}
+
+.achievement-card:not(.unlocked)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(255, 255, 255, .03) 50%,
+    transparent 70%
+  );
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ---- Enhanced Hero with animated gradient mesh ---- */
+.hero::before {
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(circle, rgba(0, 245, 255, .08) 0%, rgba(123, 97, 255, .05) 40%, transparent 70%);
+}
+
+/* ---- Animated underline on nav hover ---- */
+.nav-links a::before {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: var(--neon-cyan);
+  border-radius: 2px;
+  transition: all .3s var(--ease);
+  transform: translateX(-50%);
+  box-shadow: 0 0 8px rgba(0, 245, 255, .5);
+}
+
+.nav-links a:hover::before {
+  width: 60%;
+}
+
+/* ---- Smooth transition on main content ---- */
+#main-content {
+  animation: pageIn .4s var(--ease);
+}
+
+@keyframes pageIn {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Game card icon bounce on hover ---- */
+.game-card:hover .game-card-img {
+  animation: iconBounce .5s var(--ease);
+}
+
+@keyframes iconBounce {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(1.2) rotate(-5deg); }
+  60% { transform: scale(1.1) rotate(3deg); }
+}
+
+/* ---- Enhanced button with pulse ---- */
+.hero-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, transparent, rgba(255,255,255,.1), transparent);
+  transform: translateX(-100%);
+  transition: transform .6s ease;
+}
+
+.hero-btn:hover::after {
+  transform: translateX(100%);
+}
+
+/* ---- Glass card hover lift with perspective ---- */
+.glass-card:hover,
+.profile-stat-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--glow-cyan), 0 20px 40px rgba(0, 0, 0, .3);
+}
+
+/* ---- Top player cards ranking glow ---- */
+.top-player-card:nth-child(1) { border-left: 3px solid var(--neon-gold); }
+.top-player-card:nth-child(2) { border-left: 3px solid #c0c0c0; }
+.top-player-card:nth-child(3) { border-left: 3px solid #cd7f32; }

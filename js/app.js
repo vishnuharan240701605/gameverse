@@ -118,7 +118,7 @@ function navigate() {
   else main.innerHTML = renderHome();
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  requestAnimationFrame(() => initScrollReveal());
+  requestAnimationFrame(() => { initScrollReveal(); UI.onPageLoad(); });
 }
 
 /* ============================================
@@ -552,6 +552,7 @@ document.addEventListener('DOMContentLoaded', () => {
   Particles.init();
   initNavScroll();
   SoundFX.updateToggleBtn();
+  UI.init();
   runLoader(() => { Auth.updateNavbar(); navigate(); DailyChallenge.startTimer(); });
   window.addEventListener('hashchange', navigate);
   document.getElementById('nav-hamburger').addEventListener('click', () => {
