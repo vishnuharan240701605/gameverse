@@ -1,5 +1,5 @@
 /* ============================================
-   dailyChallenge.js — Daily challenge system
+   dailyChallenge.js — Firebase-backed daily challenge
    ============================================ */
 const DailyChallenge = (() => {
     const GAMES = [
@@ -16,6 +16,7 @@ const DailyChallenge = (() => {
     ];
 
     const BONUS_XP = 50;
+    let _completedToday = null; // Cache
 
     function getTodayIndex() {
         const now = new Date();
@@ -38,14 +39,36 @@ const DailyChallenge = (() => {
     }
 
     function hasCompletedToday() {
+        // Check local cache first
+        if (_completedToday !== null) return _completedToday;
         const key = 'gv_daily_' + new Date().toISOString().slice(0, 10);
         return localStorage.getItem(key) === 'done';
     }
 
-    function markCompleted() {
+    async function checkFirebaseCompletion() {
+        const user = firebaseAuth.currentUser;
+        if (!user) return;
+        const today = new Date().toISOString().slice(0, 10);
+        const completed = await FirebaseDB.checkDailyCompletion(user.uid, today);
+        if (completed) {
+            _completedToday = true;
+            const key = 'gv_daily_' + today;
+            localStorage.setItem(key, 'done');
+        }
+    }
+
+    async function markCompleted() {
         const key = 'gv_daily_' + new Date().toISOString().slice(0, 10);
         localStorage.setItem(key, 'done');
+        _completedToday = true;
         Auth.addXp(BONUS_XP);
+
+        // Save to Firebase
+        const user = firebaseAuth.currentUser;
+        if (user) {
+            const today = new Date().toISOString().slice(0, 10);
+            FirebaseDB.saveDailyCompletion(user.uid, today);
+        }
     }
 
     function renderSection() {
@@ -72,6 +95,9 @@ const DailyChallenge = (() => {
             if (el) el.textContent = getCountdown();
         }, 1000);
     }
+
+    // Check Firebase on load
+    checkFirebaseCompletion();
 
     return { getToday, hasCompletedToday, markCompleted, renderSection, startTimer, BONUS_XP };
 })();

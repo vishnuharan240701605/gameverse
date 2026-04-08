@@ -619,13 +619,13 @@ function renderRegisterPage() {
       <input type="text" class="auth-input" id="reg-username" placeholder="Choose a username" maxlength="20">
     </div>
     <div class="auth-field">
-      <label class="auth-label">Email <span style="color:var(--text-muted);font-size:.7rem">(optional)</span></label>
-      <input type="email" class="auth-input" id="reg-email" placeholder="your@email.com" maxlength="50">
+      <label class="auth-label">Email <span style="color:var(--text-muted);font-size:.7rem">(required for cloud save)</span></label>
+      <input type="email" class="auth-input" id="reg-email" placeholder="your@email.com" maxlength="50" required>
     </div>
     <div class="auth-field">
       <label class="auth-label">Password</label>
       <div class="auth-password-wrap">
-        <input type="password" class="auth-input" id="reg-password" placeholder="Min 4 characters" maxlength="32">
+        <input type="password" class="auth-input" id="reg-password" placeholder="Min 6 characters" maxlength="32">
         <button class="auth-eye" onclick="togglePasswordVisibility('reg-password', this)" type="button">👁️</button>
       </div>
     </div>
@@ -673,12 +673,19 @@ function selectRegAvatar(el) {
   el.classList.add('selected');
 }
 
-function handleLogin() {
+async function handleLogin() {
   const u = (document.getElementById('login-username')?.value || '').trim();
   const p = document.getElementById('login-password')?.value || '';
   const remember = document.getElementById('login-remember')?.checked || false;
   if (!u) { showAuthError('Please enter your username or email'); return; }
-  const result = Auth.login(u, p, remember);
+  
+  // Show loading state
+  const btn = document.querySelector('.auth-btn.primary');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Logging in...'; }
+  
+  const result = await Auth.login(u, p, remember);
+  
+  if (btn) { btn.disabled = false; btn.textContent = '🚀 LOGIN'; }
   if (!result.ok) { showAuthError(result.msg); return; }
   Auth.updateNavbar();
   SoundFX.play('win');
@@ -687,7 +694,7 @@ function handleLogin() {
   location.hash = player && !player.onboardingComplete ? '#brain-test' : '#home';
 }
 
-function handleRegister() {
+async function handleRegister() {
   const u = (document.getElementById('reg-username')?.value || '').trim();
   const e = (document.getElementById('reg-email')?.value || '').trim();
   const p = document.getElementById('reg-password')?.value || '';
@@ -697,11 +704,18 @@ function handleRegister() {
 
   if (!u) { showAuthError('Please choose a username'); return; }
   if (u.length < 3) { showAuthError('Username must be at least 3 characters'); return; }
+  if (!e) { showAuthError('Email is required for cloud save'); return; }
   if (!p) { showAuthError('Please enter a password'); return; }
-  if (p.length < 4) { showAuthError('Password must be at least 4 characters'); return; }
+  if (p.length < 6) { showAuthError('Password must be at least 6 characters'); return; }
   if (p !== c) { showAuthError('Passwords do not match'); return; }
 
-  const result = Auth.register(u, e, p, avatar);
+  // Show loading state
+  const btn = document.querySelector('.auth-btn.primary');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Creating account...'; }
+
+  const result = await Auth.register(u, e, p, avatar);
+  
+  if (btn) { btn.disabled = false; btn.textContent = '🧠 CREATE ACCOUNT'; }
   if (!result.ok) { showAuthError(result.msg); return; }
 
   Auth.updateNavbar();
@@ -710,15 +724,15 @@ function handleRegister() {
   location.hash = '#brain-test';
 }
 
-function handleGuestLogin() {
-  Auth.loginAsGuest();
+async function handleGuestLogin() {
+  await Auth.loginAsGuest();
   Auth.updateNavbar();
   SoundFX.play('gameStart');
   location.hash = '#games';
 }
 
-function handleLogout() {
-  Auth.logout();
+async function handleLogout() {
+  await Auth.logout();
   SoundFX.play('click');
   location.hash = '#login';
 }

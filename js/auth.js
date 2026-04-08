@@ -1,18 +1,23 @@
 /* ============================================
    auth.js — Brain Boost Challenge Auth System
+   Firebase Auth + Firestore backed
    Multi-user, XP/Level/Coins, Streak, Skills
    ============================================ */
 const Auth = (() => {
-    const USERS_KEY = 'bb_users';
+    const LOCAL_CACHE_KEY = 'bb_player_cache';
     const SESSION_KEY = 'bb_session';
     const REMEMBER_KEY = 'bb_remember';
 
+    let _currentPlayer = null;
+    let _currentUID = null;
+    let _authReady = false;
+    let _onAuthReadyCallbacks = [];
+
     /* ---------- Default player with full skill model ---------- */
-    function defaultPlayer(username, email, passHash, avatar) {
+    function defaultPlayer(username, email, avatar) {
         return {
             username,
             email: email || '',
-            passHash: passHash || '',
             avatar: avatar || '🧠',
             age: '',
             education: '',
@@ -57,103 +62,58 @@ const Auth = (() => {
         };
     }
 
-    /* ---------- Simple string hash ---------- */
-    function hashPass(str) {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            const c = str.charCodeAt(i);
-            hash = ((hash << 5) - hash) + c;
-            hash |= 0;
+    /* ---------- Local Cache for fast reads ---------- */
+    function cachePlayer(data) {
+        _currentPlayer = data;
+        if (data) {
+            localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(data));
+        } else {
+            localStorage.removeItem(LOCAL_CACHE_KEY);
         }
-        return 'h_' + Math.abs(hash).toString(36);
     }
 
-    /* ---------- Users DB ---------- */
-    function getAllUsers() {
-        // Try new key first, fall back to old
-        let d = localStorage.getItem(USERS_KEY);
-        if (!d) d = localStorage.getItem('gv_users');
-        if (!d) return {};
-        try { return JSON.parse(d); } catch (e) { return {}; }
-    }
-
-    function saveAllUsers(users) {
-        localStorage.setItem(USERS_KEY, JSON.stringify(users));
-    }
-
-    /* ---------- Migration ---------- */
-    function migrateOldData() {
-        // Migrate from old gv_player
-        const old = localStorage.getItem('gv_player');
-        if (old) {
+    function getCachedPlayer() {
+        if (_currentPlayer) return _currentPlayer;
+        const cached = localStorage.getItem(LOCAL_CACHE_KEY);
+        if (cached) {
             try {
-                const p = JSON.parse(old);
-                if (p && p.username) {
-                    const users = getAllUsers();
-                    if (!users[p.username]) {
-                        if (p.reactionBest === 9999) p.reactionBest = 0;
-                        // Add new fields
-                        p.skillScores = p.skillScores || { memory: 0, logic: 0, creativity: 0, focus: 0, reaction: 0, analysis: 0, observation: 0, visual: 0 };
-                        p.brainDominance = p.brainDominance || { left: 50, right: 50 };
-                        p.brainAge = p.brainAge || 0;
-                        p.streak = p.streak || 0;
-                        p.lastLoginDate = p.lastLoginDate || new Date().toISOString().split('T')[0];
-                        p.onboardingComplete = p.onboardingComplete || false;
-                        p.activityHistory = p.activityHistory || [];
-                        p.age = p.age || '';
-                        p.education = p.education || '';
-                        p.interests = p.interests || [];
-                        p.difficulty = p.difficulty || 'easy';
-                        users[p.username] = p;
-                        saveAllUsers(users);
-                        localStorage.setItem(SESSION_KEY, p.username);
-                    }
-                    localStorage.removeItem('gv_player');
-                }
-            } catch (e) {}
+                _currentPlayer = JSON.parse(cached);
+                return _currentPlayer;
+            } catch (e) { return null; }
         }
-
-        // Also migrate gv_users to bb_users
-        const gvUsers = localStorage.getItem('gv_users');
-        if (gvUsers && !localStorage.getItem(USERS_KEY)) {
-            try {
-                const parsed = JSON.parse(gvUsers);
-                Object.values(parsed).forEach(p => {
-                    p.skillScores = p.skillScores || { memory: 0, logic: 0, creativity: 0, focus: 0, reaction: 0, analysis: 0, observation: 0, visual: 0 };
-                    p.brainDominance = p.brainDominance || { left: 50, right: 50 };
-                    p.brainAge = p.brainAge || 0;
-                    p.streak = p.streak || 0;
-                    p.lastLoginDate = p.lastLoginDate || new Date().toISOString().split('T')[0];
-                    p.onboardingComplete = p.onboardingComplete || false;
-                    p.activityHistory = p.activityHistory || [];
-                    p.age = p.age || '';
-                    p.education = p.education || '';
-                    p.interests = p.interests || [];
-                    p.difficulty = p.difficulty || 'easy';
-                });
-                saveAllUsers(parsed);
-            } catch (e) {}
-        }
-
-        // Migrate session keys
-        const gvSession = localStorage.getItem('gv_session');
-        if (gvSession && !localStorage.getItem(SESSION_KEY)) {
-            localStorage.setItem(SESSION_KEY, gvSession);
-        }
+        return null;
     }
 
-    /* ---------- Session ---------- */
-    function getSessionUser() {
-        return localStorage.getItem(SESSION_KEY) || null;
+    /* ---------- Firebase Auth State Listener ---------- */
+    firebaseAuth.onAuthStateChanged(async (user) => {
+        if (user) {
+            _currentUID = user.uid;
+            // Try to load profile from Firebase
+            const profile = await FirebaseDB.getUserProfile(user.uid);
+            if (profile) {
+                _currentPlayer = migratePlayerFields(profile);
+                cachePlayer(_currentPlayer);
+            }
+            localStorage.setItem(SESSION_KEY, user.uid);
+        } else {
+            _currentUID = null;
+            _currentPlayer = null;
+            localStorage.removeItem(SESSION_KEY);
+            localStorage.removeItem(LOCAL_CACHE_KEY);
+        }
+        _authReady = true;
+        _onAuthReadyCallbacks.forEach(cb => cb());
+        _onAuthReadyCallbacks = [];
+        updateNavbar();
+    });
+
+    function onAuthReady(cb) {
+        if (_authReady) { cb(); return; }
+        _onAuthReadyCallbacks.push(cb);
     }
 
-    function getPlayer() {
-        const uname = getSessionUser();
-        if (!uname) return null;
-        const users = getAllUsers();
-        const p = users[uname];
-        if (!p) return null;
-        // Live migration
+    /* ---------- Field Migration (ensure all fields exist) ---------- */
+    function migratePlayerFields(p) {
         if (p.reactionBest === 9999) p.reactionBest = 0;
         if (p.coins === undefined) p.coins = 0;
         if (p.avatar === undefined) p.avatar = '🧠';
@@ -176,13 +136,29 @@ const Auth = (() => {
         if (!p.education) p.education = '';
         if (!p.interests) p.interests = [];
         if (!p.difficulty) p.difficulty = 'easy';
+        if (p.gamesPlayed === undefined) p.gamesPlayed = 0;
+        if (p.wins === undefined) p.wins = 0;
+        if (p.totalScore === undefined) p.totalScore = 0;
+        if (p.xp === undefined) p.xp = 0;
+        if (p.memoryWins === undefined) p.memoryWins = 0;
+        if (p.snakeBest === undefined) p.snakeBest = 0;
+        if (p.quizBest === undefined) p.quizBest = 0;
+        if (p.rpsBest === undefined) p.rpsBest = 0;
+        if (p.tttWins === undefined) p.tttWins = 0;
+        if (p.reactionBest === undefined) p.reactionBest = 0;
         return p;
     }
 
+    /* ---------- Get Player (synchronous, from cache) ---------- */
+    function getPlayer() {
+        const p = getCachedPlayer();
+        if (!p) return null;
+        return migratePlayerFields(p);
+    }
+
+    /* ---------- Save Player (to cache + Firebase) ---------- */
     function savePlayer(data) {
-        const uname = getSessionUser();
-        if (!uname) return;
-        const users = getAllUsers();
+        if (!_currentUID) return;
         data.totalScore = Number(data.totalScore) || 0;
         data.gamesPlayed = Number(data.gamesPlayed) || 0;
         data.wins = Number(data.wins) || 0;
@@ -190,66 +166,132 @@ const Auth = (() => {
         data.coins = Number(data.coins) || 0;
         data.highestScore = Number(data.highestScore) || 0;
         data.level = getLevel(data.xp);
-        users[uname] = data;
-        saveAllUsers(users);
+
+        // Save to local cache immediately (fast)
+        cachePlayer(data);
+
+        // Save to Firebase (async, non-blocking)
+        FirebaseDB.saveUserProfile(_currentUID, data).catch(err => {
+            console.error('Failed to sync to Firebase:', err);
+        });
     }
 
-    /* ---------- Register ---------- */
-    function register(username, email, password, avatar) {
+    /* ---------- Register (Firebase Auth) ---------- */
+    async function register(username, email, password, avatar) {
         if (!username || !username.trim()) return { ok: false, msg: 'Username is required' };
         username = username.trim();
         if (username.length < 3) return { ok: false, msg: 'Username must be at least 3 characters' };
-        if (password && password.length < 4) return { ok: false, msg: 'Password must be at least 4 characters' };
+        if (!email || !email.trim()) return { ok: false, msg: 'Email is required for Firebase registration' };
+        if (!password) return { ok: false, msg: 'Password is required' };
+        if (password.length < 6) return { ok: false, msg: 'Password must be at least 6 characters (Firebase requirement)' };
 
-        const users = getAllUsers();
-        if (users[username]) return { ok: false, msg: 'Username already taken' };
+        try {
+            // Check if username is already taken
+            const existingUsers = await firebaseDB.collection('users')
+                .where('username', '==', username).limit(1).get();
+            if (!existingUsers.empty) {
+                return { ok: false, msg: 'Username already taken' };
+            }
 
-        const ph = password ? hashPass(password) : '';
-        users[username] = defaultPlayer(username, email, ph, avatar || '🧠');
-        saveAllUsers(users);
-        localStorage.setItem(SESSION_KEY, username);
-        return { ok: true };
+            // Create Firebase Auth account
+            const userCred = await firebaseAuth.createUserWithEmailAndPassword(email.trim(), password);
+            const uid = userCred.user.uid;
+
+            // Update display name
+            await userCred.user.updateProfile({ displayName: username });
+
+            // Create player profile
+            const player = defaultPlayer(username, email.trim(), avatar || '🧠');
+            player.uid = uid;
+
+            // Save to Firestore
+            await FirebaseDB.saveUserProfile(uid, player);
+
+            // Cache locally
+            _currentUID = uid;
+            cachePlayer(player);
+
+            return { ok: true };
+        } catch (err) {
+            console.error('Registration error:', err);
+            if (err.code === 'auth/email-already-in-use') {
+                return { ok: false, msg: 'This email is already registered. Please login instead.' };
+            }
+            if (err.code === 'auth/invalid-email') {
+                return { ok: false, msg: 'Invalid email address.' };
+            }
+            if (err.code === 'auth/weak-password') {
+                return { ok: false, msg: 'Password is too weak. Use at least 6 characters.' };
+            }
+            return { ok: false, msg: err.message || 'Registration failed. Please try again.' };
+        }
     }
 
-    /* ---------- Login ---------- */
-    function login(username, password, remember) {
-        if (!username || !username.trim()) return { ok: false, msg: 'Username is required' };
+    /* ---------- Login (Firebase Auth) ---------- */
+    async function login(username, password, remember) {
+        if (!username || !username.trim()) return { ok: false, msg: 'Email is required' };
         username = username.trim();
-        const users = getAllUsers();
+        if (!password) return { ok: false, msg: 'Password required' };
 
-        // Support email login
-        let user = users[username];
-        if (!user) {
-            const byEmail = Object.values(users).find(u => u.email && u.email.toLowerCase() === username.toLowerCase());
-            if (byEmail) {
-                user = byEmail;
-                username = byEmail.username;
+        try {
+            // Firebase Auth uses email for login
+            let email = username;
+
+            // If username provided instead of email, look up email from Firestore
+            if (!email.includes('@')) {
+                const snapshot = await firebaseDB.collection('users')
+                    .where('username', '==', username).limit(1).get();
+                if (snapshot.empty) {
+                    return { ok: false, msg: 'User not found. Please register first.' };
+                }
+                email = snapshot.docs[0].data().email;
+                if (!email) {
+                    return { ok: false, msg: 'No email associated with this account.' };
+                }
             }
-        }
 
-        if (!user) return { ok: false, msg: 'User not found. Please register first.' };
-        if (user.passHash && password && hashPass(password) !== user.passHash) {
-            return { ok: false, msg: 'Incorrect password' };
-        }
-        if (user.passHash && !password) {
-            return { ok: false, msg: 'Password required' };
-        }
+            // Sign in with Firebase Auth
+            const userCred = await firebaseAuth.signInWithEmailAndPassword(email, password);
+            const uid = userCred.user.uid;
 
-        // Update streak
-        updateStreak(user);
-        users[username] = user;
-        saveAllUsers(users);
+            // Load profile from Firestore
+            const profile = await FirebaseDB.getUserProfile(uid);
+            if (profile) {
+                _currentUID = uid;
+                const player = migratePlayerFields(profile);
 
-        localStorage.setItem(SESSION_KEY, username);
-        if (remember) localStorage.setItem(REMEMBER_KEY, username);
-        return { ok: true };
+                // Update streak
+                updateStreak(player);
+                cachePlayer(player);
+                await FirebaseDB.saveUserProfile(uid, player);
+            }
+
+            if (remember) localStorage.setItem(REMEMBER_KEY, email);
+
+            return { ok: true };
+        } catch (err) {
+            console.error('Login error:', err);
+            if (err.code === 'auth/user-not-found') {
+                return { ok: false, msg: 'User not found. Please register first.' };
+            }
+            if (err.code === 'auth/wrong-password') {
+                return { ok: false, msg: 'Incorrect password.' };
+            }
+            if (err.code === 'auth/invalid-email') {
+                return { ok: false, msg: 'Invalid email address.' };
+            }
+            if (err.code === 'auth/too-many-requests') {
+                return { ok: false, msg: 'Too many attempts. Please try again later.' };
+            }
+            return { ok: false, msg: err.message || 'Login failed. Please try again.' };
+        }
     }
 
     /* ---------- Streak Logic ---------- */
     function updateStreak(player) {
         const today = new Date().toISOString().split('T')[0];
         const last = player.lastLoginDate || '';
-        
+
         if (last === today) return; // Already logged in today
 
         const lastDate = new Date(last);
@@ -265,27 +307,56 @@ const Auth = (() => {
         player.lastLoginDate = today;
     }
 
-    /* ---------- Guest ---------- */
-    function loginAsGuest() {
-        const guestName = 'Guest_' + Math.random().toString(36).slice(2, 7);
-        const users = getAllUsers();
-        const p = defaultPlayer(guestName, '', '', '👤');
-        p.onboardingComplete = true; // Skip onboarding for guests
-        users[guestName] = p;
-        saveAllUsers(users);
-        localStorage.setItem(SESSION_KEY, guestName);
-        return guestName;
+    /* ---------- Guest (Firebase Anonymous Auth) ---------- */
+    async function loginAsGuest() {
+        try {
+            const userCred = await firebaseAuth.signInAnonymously();
+            const uid = userCred.user.uid;
+            const guestName = 'Guest_' + Math.random().toString(36).slice(2, 7);
+
+            const p = defaultPlayer(guestName, '', '👤');
+            p.uid = uid;
+            p.onboardingComplete = true; // Skip onboarding for guests
+            p.isGuest = true;
+
+            _currentUID = uid;
+            await FirebaseDB.saveUserProfile(uid, p);
+            cachePlayer(p);
+
+            return guestName;
+        } catch (err) {
+            console.error('Guest login error:', err);
+            // Fallback: create local-only guest
+            const guestName = 'Guest_' + Math.random().toString(36).slice(2, 7);
+            const p = defaultPlayer(guestName, '', '👤');
+            p.onboardingComplete = true;
+            p.isGuest = true;
+            cachePlayer(p);
+            return guestName;
+        }
     }
 
     /* ---------- Logout ---------- */
-    function logout() {
+    async function logout() {
+        try {
+            await firebaseAuth.signOut();
+        } catch (err) {
+            console.error('Logout error:', err);
+        }
+        _currentPlayer = null;
+        _currentUID = null;
         localStorage.removeItem(SESSION_KEY);
+        localStorage.removeItem(LOCAL_CACHE_KEY);
         localStorage.removeItem(REMEMBER_KEY);
         updateNavbar();
     }
 
     function isLoggedIn() {
         return !!getPlayer();
+    }
+
+    function getSessionUser() {
+        return localStorage.getItem(SESSION_KEY) || null;
     }
 
     /* ---------- Levels / XP ---------- */
@@ -347,7 +418,6 @@ const Auth = (() => {
 
         Object.entries(skillMap).forEach(([skill, delta]) => {
             const current = Number(p.skillScores[skill]) || 0;
-            // Smooth increase: diminishing returns as score gets higher
             const boost = Math.max(1, Math.round(delta * (1 - current / 150)));
             p.skillScores[skill] = Math.min(100, current + boost);
         });
@@ -378,6 +448,12 @@ const Auth = (() => {
 
         savePlayer(p);
         if (p.level > oldLv) showLevelUp(p.level);
+
+        // Update Firestore leaderboard
+        if (_currentUID) {
+            FirebaseDB.updateLeaderboard(_currentUID, p.username, p.totalScore, p.gamesPlayed);
+        }
+
         Leaderboard.update(p.username, p.totalScore, p.gamesPlayed);
         Achievements.checkAndNotify();
         updateNavbar();
@@ -424,23 +500,70 @@ const Auth = (() => {
         }
     }
 
+    /* ---------- Get all users (for compatibility) ---------- */
+    function getAllUsers() {
+        // Synchronous fallback for features that need it
+        const cached = localStorage.getItem('bb_users');
+        if (cached) {
+            try { return JSON.parse(cached); } catch (e) { return {}; }
+        }
+        return {};
+    }
+
+    /* ---------- Legacy hash (kept for compatibility) ---------- */
+    function hashPass(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const c = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + c;
+            hash |= 0;
+        }
+        return 'h_' + Math.abs(hash).toString(36);
+    }
+
+    /* ---------- Migration from old localStorage data ---------- */
+    function migrateOldData() {
+        // Check if there's old data to migrate
+        const oldUsers = localStorage.getItem('bb_users') || localStorage.getItem('gv_users');
+        const oldPlayer = localStorage.getItem('gv_player');
+        if (oldUsers || oldPlayer) {
+            console.log('📦 Old localStorage data detected. Will migrate on next Firebase login.');
+        }
+    }
+
+    async function migrateLocalDataToFirebase() {
+        if (!_currentUID || !_currentPlayer) return;
+
+        // Check if old localStorage data exists
+        const oldUsersRaw = localStorage.getItem('bb_users') || localStorage.getItem('gv_users');
+        if (!oldUsersRaw) return;
+
+        try {
+            const oldUsers = JSON.parse(oldUsersRaw);
+            const username = _currentPlayer.username;
+            const oldData = oldUsers[username];
+
+            if (oldData && oldData.gamesPlayed > (_currentPlayer.gamesPlayed || 0)) {
+                // Merge old data into current profile
+                const merged = { ..._currentPlayer, ...oldData, uid: _currentUID };
+                merged.level = getLevel(merged.xp);
+                await FirebaseDB.saveUserProfile(_currentUID, merged);
+                cachePlayer(merged);
+                console.log('✅ Migrated old localStorage data to Firebase');
+            }
+        } catch (e) {
+            console.error('Migration error:', e);
+        }
+    }
+
     /* ---------- Init ---------- */
     migrateOldData();
-    if (!getSessionUser()) {
-        const rem = localStorage.getItem(REMEMBER_KEY);
-        if (rem) localStorage.setItem(SESSION_KEY, rem);
-    }
-    // Update streak on load
-    const currentPlayer = getPlayer();
-    if (currentPlayer) {
-        updateStreak(currentPlayer);
-        savePlayer(currentPlayer);
-    }
 
     return {
         getPlayer, savePlayer, login, register, loginAsGuest, logout,
         isLoggedIn, getLevel, getXpForLevel, getXpProgress,
         addXp, addCoins, getCoins, recordGame, setAvatar, updateNavbar,
-        hashPass, getAllUsers, updateSkills, defaultPlayer
+        hashPass, getAllUsers, updateSkills, defaultPlayer, onAuthReady,
+        getSessionUser, migrateLocalDataToFirebase
     };
 })();

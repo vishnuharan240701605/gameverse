@@ -1,8 +1,8 @@
 /* ============================================
-   leaderboard.js — Card-based leaderboard
+   leaderboard.js — Firebase-backed leaderboard
    ============================================ */
 const Leaderboard = (() => {
-    const KEY = 'gv_leaderboard';
+    const LOCAL_KEY = 'gv_leaderboard';
     const DEFAULTS = [
         { username: 'NeonBlade', score: 820, gamesPlayed: 34 },
         { username: 'PixelQueen', score: 690, gamesPlayed: 28 },
@@ -13,21 +13,68 @@ const Leaderboard = (() => {
         { username: 'VoidWalker', score: 240, gamesPlayed: 10 },
     ];
 
-    function getAll() {
-        let data = localStorage.getItem(KEY);
-        if (!data) { localStorage.setItem(KEY, JSON.stringify(DEFAULTS)); return [...DEFAULTS]; }
-        return JSON.parse(data);
+    let _cachedList = null;
+
+    /* --- Local cache for fast rendering --- */
+    function getLocalAll() {
+        let data = localStorage.getItem(LOCAL_KEY);
+        if (!data) { localStorage.setItem(LOCAL_KEY, JSON.stringify(DEFAULTS)); return [...DEFAULTS]; }
+        try { return JSON.parse(data); } catch(e) { return [...DEFAULTS]; }
     }
 
-    function save(list) { localStorage.setItem(KEY, JSON.stringify(list)); }
+    function saveLocal(list) {
+        localStorage.setItem(LOCAL_KEY, JSON.stringify(list));
+        _cachedList = list;
+    }
 
+    /* --- Get all (local cache, Firebase loads async) --- */
+    function getAll() {
+        if (_cachedList) return _cachedList;
+        return getLocalAll();
+    }
+
+    /* --- Update both local and Firebase --- */
     function update(username, score, gamesPlayed) {
-        const list = getAll();
+        const list = getLocalAll();
         const idx = list.findIndex(e => e.username === username);
         if (idx >= 0) { list[idx].score = score; list[idx].gamesPlayed = gamesPlayed; }
         else list.push({ username, score, gamesPlayed });
         list.sort((a, b) => b.score - a.score);
-        save(list);
+        saveLocal(list);
+    }
+
+    /* --- Load from Firebase and merge --- */
+    async function syncFromFirebase() {
+        try {
+            const firebaseEntries = await FirebaseDB.getLeaderboardTop(50);
+            if (firebaseEntries.length > 0) {
+                const localList = getLocalAll();
+                const merged = [...localList];
+
+                firebaseEntries.forEach(fb => {
+                    const idx = merged.findIndex(m => m.username === fb.username);
+                    if (idx >= 0) {
+                        // Keep higher score
+                        if (fb.score > merged[idx].score) {
+                            merged[idx].score = fb.score;
+                            merged[idx].gamesPlayed = fb.gamesPlayed || merged[idx].gamesPlayed;
+                        }
+                    } else {
+                        merged.push({
+                            username: fb.username,
+                            score: fb.score || 0,
+                            gamesPlayed: fb.gamesPlayed || 0
+                        });
+                    }
+                });
+
+                merged.sort((a, b) => b.score - a.score);
+                saveLocal(merged);
+                console.log('☁️ Leaderboard synced from Firebase');
+            }
+        } catch (err) {
+            console.warn('Leaderboard Firebase sync failed, using local data:', err);
+        }
     }
 
     function getTop(n = 10) { return getAll().slice(0, n); }
@@ -53,5 +100,8 @@ const Leaderboard = (() => {
     // Keep old renderTable for compatibility
     function renderTable() { return renderCards(); }
 
-    return { getAll, update, getTop, renderTable, renderCards };
+    // Sync from Firebase on load
+    syncFromFirebase();
+
+    return { getAll, update, getTop, renderTable, renderCards, syncFromFirebase };
 })();
