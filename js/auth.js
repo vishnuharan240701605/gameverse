@@ -186,28 +186,35 @@ const Auth = (() => {
         if (password.length < 6) return { ok: false, msg: 'Password must be at least 6 characters (Firebase requirement)' };
 
         try {
-            // Check if username is already taken
-            const existingUsers = await firebaseDB.collection('users')
-                .where('username', '==', username).limit(1).get();
-            if (!existingUsers.empty) {
-                return { ok: false, msg: 'Username already taken' };
-            }
-
-            // Create Firebase Auth account
+            // 1. Create Firebase Auth account FIRST (so we are authenticated for Firestore)
             const userCred = await firebaseAuth.createUserWithEmailAndPassword(email.trim(), password);
             const uid = userCred.user.uid;
 
-            // Update display name
+            // 2. Now check if username is already taken (we are authenticated now)
+            try {
+                const existingUsers = await firebaseDB.collection('users')
+                    .where('username', '==', username).limit(1).get();
+                if (!existingUsers.empty) {
+                    // Username taken — delete the auth account we just created
+                    await userCred.user.delete();
+                    return { ok: false, msg: 'Username already taken' };
+                }
+            } catch (queryErr) {
+                console.warn('Username check failed, proceeding:', queryErr);
+                // If query fails, proceed anyway (username uniqueness is best-effort)
+            }
+
+            // 3. Update display name
             await userCred.user.updateProfile({ displayName: username });
 
-            // Create player profile
+            // 4. Create player profile
             const player = defaultPlayer(username, email.trim(), avatar || '🧠');
             player.uid = uid;
 
-            // Save to Firestore
+            // 5. Save to Firestore
             await FirebaseDB.saveUserProfile(uid, player);
 
-            // Cache locally
+            // 6. Cache locally
             _currentUID = uid;
             cachePlayer(player);
 
@@ -239,14 +246,19 @@ const Auth = (() => {
 
             // If username provided instead of email, look up email from Firestore
             if (!email.includes('@')) {
-                const snapshot = await firebaseDB.collection('users')
-                    .where('username', '==', username).limit(1).get();
-                if (snapshot.empty) {
-                    return { ok: false, msg: 'User not found. Please register first.' };
-                }
-                email = snapshot.docs[0].data().email;
-                if (!email) {
-                    return { ok: false, msg: 'No email associated with this account.' };
+                try {
+                    const snapshot = await firebaseDB.collection('users')
+                        .where('username', '==', username).limit(1).get();
+                    if (snapshot.empty) {
+                        return { ok: false, msg: 'User not found. Please register first.' };
+                    }
+                    email = snapshot.docs[0].data().email;
+                    if (!email) {
+                        return { ok: false, msg: 'No email associated with this account.' };
+                    }
+                } catch (queryErr) {
+                    console.warn('Username lookup failed:', queryErr);
+                    return { ok: false, msg: 'Please login with your email address instead of username.' };
                 }
             }
 
